@@ -250,6 +250,23 @@ renders every track of every installed pack for checking.
 See [Performance](#performance) — a sprite pet is cheaper than the drawn art,
 because it only redraws when its frame changes.
 
+## Size
+
+The pet can be drawn anywhere from half to double size: 🐈 → **Size** holds a
+slider with a live readout and a **Reset to 100%**, and the CLI has the same:
+
+    pet size            print the current size
+    pet size 150        set it (a percentage, or a multiplier like 1.5)
+    pet size reset
+
+Nothing in the drawing code knows about this. The window is resized to the
+design size times the scale, and the view's *bounds* are left at the design
+size — AppKit scales a view whose bounds are smaller than its frame, so the
+art, the bubbles and the grab area all follow without a single coordinate
+being touched. It costs nothing measurable: an idle sprite is about 0.7% CPU
+at 200%, the same as at 100%, because it still only redraws when its frame
+changes.
+
 ## Performance
 
 The loop rate follows what is happening, because a pet that runs flat out

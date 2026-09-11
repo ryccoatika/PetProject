@@ -37,6 +37,12 @@ extension AppDelegate {
         skinItem.submenu = skinMenu
         mainMenu.addItem(skinItem)
 
+        let sizeItem = NSMenuItem(title: "Size", action: nil, keyEquivalent: "")
+        sizeMenu.autoenablesItems = false
+        buildSizeMenu()
+        sizeItem.submenu = sizeMenu
+        mainMenu.addItem(sizeItem)
+
         let pluginItem = NSMenuItem(title: "Agent Plugin", action: nil, keyEquivalent: "")
         pluginMenu.delegate = self         // re-read from disk each time it opens
         pluginMenu.autoenablesItems = false
@@ -81,6 +87,53 @@ extension AppDelegate {
     }
 
     /// Cheap: only the values that change while the app runs.
+    /// A slider lives in the menu as a custom view; the readout above it is
+    /// updated as it moves rather than being rebuilt, so dragging stays smooth.
+    func buildSizeMenu() {
+        sizeMenu.removeAllItems()
+
+        let readout = NSMenuItem(title: sizeLabel(), action: nil, keyEquivalent: "")
+        readout.isEnabled = false
+        sizeReadout = readout
+        sizeMenu.addItem(readout)
+
+        let holder = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 30))
+        let slider = NSSlider(frame: NSRect(x: 18, y: 5, width: 184, height: 20))
+        slider.minValue = Double(AppDelegate.scaleRange.lowerBound)
+        slider.maxValue = Double(AppDelegate.scaleRange.upperBound)
+        slider.doubleValue = Double(artScale)
+        slider.isContinuous = true
+        slider.target = self
+        slider.action = #selector(sizeSliderMoved(_:))
+        holder.addSubview(slider)
+        sizeSlider = slider
+
+        let row = NSMenuItem()
+        row.view = holder
+        sizeMenu.addItem(row)
+
+        sizeMenu.addItem(.separator())
+        let reset = NSMenuItem(title: "Reset to 100%", action: #selector(resetSize),
+                               keyEquivalent: "")
+        reset.target = self
+        reset.isEnabled = artScale != 1
+        sizeMenu.addItem(reset)
+    }
+
+    func sizeLabel() -> String { "Size: \(Int((artScale * 100).rounded()))%" }
+
+    @objc func sizeSliderMoved(_ sender: NSSlider) {
+        setArtScale(CGFloat(sender.doubleValue))
+        sizeReadout?.title = sizeLabel()
+    }
+
+    @objc func resetSize() {
+        setArtScale(1)
+        sizeSlider?.doubleValue = 1
+        sizeReadout?.title = sizeLabel()
+        buildSizeMenu()
+    }
+
     func refreshMenu() {
         statusRow?.title = statusSummary()
         visItem?.title = hidden ? "Show Pet" : "Hide Pet"
@@ -94,6 +147,7 @@ extension AppDelegate {
             populateSkinMenu()
         }
         if menu === pluginMenu { populatePluginMenu() }
+        if menu === sizeMenu { buildSizeMenu() }
     }
 
     func statusSummary() -> String {

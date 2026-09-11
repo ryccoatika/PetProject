@@ -28,6 +28,7 @@ extension CLI {
         print("hidden     : \(d.bool(forKey: "petHidden") ? "yes" : "no")")
         print("chase      : \(d.bool(forKey: "petChase") ? "on" : "off")")
         print("menu bar   : \(d.bool(forKey: "petTrayHidden") ? "hidden" : "shown")")
+        print("size       : \(Int((((d.object(forKey: "petScale") as? Double) ?? 1) * 100).rounded()))%")
 
         let state = SkinStore.configDir.appendingPathComponent("state")
         if let raw = try? String(contentsOf: state, encoding: .utf8) {
@@ -74,6 +75,37 @@ extension CLI {
         default:
             fail("usage: pet tray [show | hide]")
         }
+    }
+
+    /// `pet size` prints it, `pet size 150` sets it, `pet size reset` clears it.
+    static func size(_ argument: String?) {
+        Prefs.refresh()
+        let current = (Prefs.store.object(forKey: "petScale") as? Double) ?? 1
+
+        guard let argument else {
+            print("\(Int((current * 100).rounded()))%")
+            return
+        }
+        if argument == "reset" || argument == "default" {
+            Prefs.store.removeObject(forKey: "petScale")
+            Prefs.store.synchronize()
+            Prefs.notifyRunningApp()
+            print("size reset to 100%")
+            return
+        }
+        let text = argument.hasSuffix("%") ? String(argument.dropLast()) : argument
+        guard let number = Double(text), number > 0 else {
+            fail("usage: pet size [50…200 | reset]")
+        }
+        // accept either a percentage or a plain multiplier
+        let scale = number > 5 ? number / 100 : number
+        guard scale >= 0.5, scale <= 2 else {
+            fail("size must be between 50% and 200%")
+        }
+        Prefs.store.set(scale, forKey: "petScale")
+        Prefs.store.synchronize()
+        Prefs.notifyRunningApp()
+        print("size set to \(Int((scale * 100).rounded()))%")
     }
 
     static func setHidden(_ value: Bool) {

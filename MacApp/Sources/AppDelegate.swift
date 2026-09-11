@@ -11,7 +11,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// costs measurably more, so the window follows the art.
     static let vectorSize = NSSize(width: 170, height: 165)
     static let spriteSize = NSSize(width: 210, height: 240)
+    /// The window's size, which is the design size times `artScale`.
     var size = AppDelegate.vectorSize
+
+    /// How big the user wants the pet, 0.5x to 2x.
+    static let scaleRange: ClosedRange<CGFloat> = 0.5...2
+    var artScale: CGFloat = 1
     var window: NSWindow!
     var view: PetView!
     var statusItem: NSStatusItem?
@@ -39,6 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var skinErrors: [String] = []
     var skinMenu = NSMenu()
     var pluginMenu = NSMenu()
+    var sizeMenu = NSMenu()
+    var sizeSlider: NSSlider?
+    var sizeReadout: NSMenuItem?
     let mainMenu = NSMenu()
     var statusRow: NSMenuItem!
     var visItem: NSMenuItem!
@@ -82,6 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let d = Prefs.store
         chaseWhenIdle = d.bool(forKey: "petChase")
+        if let saved = d.object(forKey: "petScale") as? Double { artScale = CGFloat(saved) }
         reloadSkins()
         let wanted = d.string(forKey: "petSkin") ?? "tabby"
         if let pet = sprites.first(where: { $0.id == wanted }) {

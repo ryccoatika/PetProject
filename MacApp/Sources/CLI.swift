@@ -94,6 +94,7 @@ enum CLI {
           start | stop | restart
           show | hide            show or hide the pet
           tray show | tray hide  show or hide the menu bar icon
+          size [50…200 | reset]  how big the pet is drawn
 
         SKINS AND SPRITE PETS
           skins                  list everything installed
@@ -140,6 +141,7 @@ enum CLI {
         case "show":                 setHidden(false)
         case "hide":                 setHidden(true)
         case "tray":                 tray(args.first)
+        case "size":                 size(args.first)
         case "skins":                args.first == "dir" ? print(SkinStore.userDir.path) : listSkins()
         case "pets":                 pets(args)
         case "skin":                 setSkin(args.first)

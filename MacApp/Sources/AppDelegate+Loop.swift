@@ -38,7 +38,8 @@ extension AppDelegate {
                  + "skin=\(view.sprite?.id ?? view.skin.id) "
                  + "hidden=\(hidden ? 1 : 0) chase=\(chaseWhenIdle ? 1 : 0) "
                  + "tray=\(trayHidden ? "hidden" : "shown") "
-                 + "cli=\(cliReachable ? "ok" : "needs-path")\n"
+                 + "cli=\(cliReachable ? "ok" : "needs-path") "
+                 + "size=\(Int(artScale * 100))%\n"
         try? line.write(to: dir.appendingPathComponent("runtime"), atomically: true, encoding: .utf8)
     }
 
@@ -52,6 +53,10 @@ extension AppDelegate {
             if hidden { window.orderOut(nil) } else { place(); window.orderFrontRegardless() }
         }
         chaseWhenIdle = d.bool(forKey: "petChase")
+        // a missing key means the default size, which is how `pet size reset`
+        // clears it — reading it as "no change" would ignore the reset
+        let savedScale = CGFloat((d.object(forKey: "petScale") as? Double) ?? 1)
+        if savedScale != artScale { setArtScale(savedScale, save: false) }
         let wantTrayHidden = d.bool(forKey: "petTrayHidden")
         if wantTrayHidden != trayHidden {
             trayHidden = wantTrayHidden
@@ -98,14 +103,34 @@ extension AppDelegate {
     /// has not actually moved.
     /// Resize the window to suit the current art, keeping the pet in place.
     func applyWindowSize() {
-        let wanted = view.sprite == nil ? AppDelegate.vectorSize : AppDelegate.spriteSize
-        guard wanted != size else { return }
+        let design = view.sprite == nil ? AppDelegate.vectorSize : AppDelegate.spriteSize
+        let wanted = NSSize(width: (design.width * artScale).rounded(),
+                            height: (design.height * artScale).rounded())
+        guard wanted != size || view.bounds.size != design else { return }
         size = wanted
         window.setContentSize(wanted)
         view.frame = NSRect(origin: .zero, size: wanted)
+        // Drawing stays in design coordinates: AppKit scales a view whose
+        // bounds are smaller than its frame, so no art has to know about this.
+        view.setBoundsSize(design)
         placedAt = CGPoint(x: CGFloat.infinity, y: CGFloat.infinity)   // force a reposition
+        pos = clampToScreen(pos)
         place()
         view.needsDisplay = true
+    }
+
+    /// Change how big the pet is drawn. Clamped, saved, and applied at once.
+    func setArtScale(_ value: CGFloat, save: Bool = true) {
+        let clamped = min(max(value, AppDelegate.scaleRange.lowerBound),
+                          AppDelegate.scaleRange.upperBound)
+        guard clamped != artScale else { return }
+        artScale = clamped
+        if save {
+            Prefs.store.set(Double(clamped), forKey: "petScale")
+            Prefs.store.synchronize()
+        }
+        applyWindowSize()
+        writeRuntime()
     }
 
     func place() {
