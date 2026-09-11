@@ -27,10 +27,14 @@ the `.dmg` attached.
 
 ## What ships
 
-`MacApp/dmg.sh` builds the image. On a CI runner there is no Finder to script,
-so the window layout is skipped and the image is still valid — it just opens
-as a plain folder view rather than with the background and icon positions.
-Build it locally if you want the arranged version attached instead.
+`MacApp/dmg.sh` builds the image. On a CI runner the window layout is skipped:
+there is nobody to look at it, and a headless Finder holds the volume open
+afterwards, which makes ejecting it fail. The image is still valid — it just
+opens as a plain folder view rather than with the background and icon
+positions. Build it locally if you want the arranged version attached instead.
+
+The skip keys off `CI`. Set `PET_DMG_LAYOUT=1` to lay the window out anyway, or
+`PET_DMG_LAYOUT=0` to skip it on your own machine.
 
 The app is signed ad-hoc, not notarised, so first launch needs right-click →
 Open. Notarising would need a paid Apple Developer ID and the certificate in
