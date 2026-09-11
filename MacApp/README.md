@@ -24,8 +24,6 @@ the running pet.
 
 ## Sharing it
 
-### Disk image (drag and drop)
-
     ./dmg.sh
 
 Produces `build/DesktopPet-1.0.dmg`: the usual Mac installer window with
@@ -49,29 +47,12 @@ full path works.
 
 The one rough edge is Gatekeeper. The app is ad-hoc signed, not notarised, and
 a disk image cannot clear its own quarantine, so the first launch needs
-right-click → Open. The zip below avoids that because its installer script can
-clear the attribute.
+right-click → Open (or Open Anyway in System Settings → Privacy & Security).
+Notarising with a paid Apple Developer ID is the only way to remove that step.
 
-### Zip (scripted install)
-
-    ./package.sh
-
-Produces `build/DesktopPet-1.0.zip` containing `Pet.app`, `install.sh` and a
-short `README.txt`. The recipient unzips it and runs:
-
-    sh install.sh           the app and the `pet` command
-    pet plugin install      optional: make it react to Claude Code
-
-The installer copies `Pet.app` to `~/Applications`, symlinks `pet`, clears the
-download quarantine, and launches it — no Claude config is touched unless they
-choose to run the plugin command. The hook script is compiled into the binary,
-so the plugin needs no extra files in the zip.
-
-The build is a universal binary (Intel + Apple Silicon) with a macOS 12
-deployment target. It is ad-hoc signed, not notarised: `install.sh` clears
-the quarantine attribute, but anyone who drags `Pet.app` out by hand has to
-right-click → Open the first time. Notarising would need a paid Apple
-Developer ID.
+`install.sh` is still here for installing from a checkout or a copied folder
+without the disk image — it copies the app, clears the quarantine attribute and
+symlinks the CLI — but nothing packages it any more.
 
 ## App icon
 
