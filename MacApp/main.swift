@@ -1912,7 +1912,7 @@ enum CLI {
 // macOS can append a -psn_… process-serial-number argument when launching a
 // bundle, so it is ignored when deciding.
 let petArgs = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-psn_") }
-let renderCommands: Set<String> = ["render", "icon", "--render", "--icon"]
+let renderCommands: Set<String> = ["render", "icon", "dmgbg", "--render", "--icon", "--dmgbg"]
 
 if let first = petArgs.first {
     if !renderCommands.contains(first) {
@@ -1923,6 +1923,76 @@ if let first = petArgs.first {
     // executable (Contents/MacOS/Pet, how Finder and `open` launch it) starts
     // the pet itself — no guessing from pipes or terminals.
     CLI.help()
+    exit(0)
+}
+
+// MARK: - DMG background render (`--dmgbg out.png`)
+
+if petArgs.first == "dmgbg" || CommandLine.arguments.contains("--dmgbg") {
+    _ = NSApplication.shared
+    guard let out = petArgs.last, out.lowercased().hasSuffix(".png"), out != petArgs.first else {
+        CLI.fail("usage: pet dmgbg <file.png>")
+    }
+    let w: CGFloat = 600, h: CGFloat = 400
+    let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: Int(w), pixelsHigh: Int(h),
+        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+        colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    rep.size = NSSize(width: w, height: h)
+
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+
+    NSGradient(colors: [NSColor(srgbRed: 0.25, green: 0.31, blue: 0.38, alpha: 1),
+                        NSColor(srgbRed: 0.11, green: 0.15, blue: 0.20, alpha: 1)])!
+        .draw(in: NSRect(x: 0, y: 0, width: w, height: h), angle: -90)
+
+    // the pet, drawn small beside the title
+    let pet = PetView(frame: NSRect(x: 0, y: 0, width: 170, height: 165))
+    pet.skin = SkinStore.embeddedSkins.first { $0.id == "tabby" } ?? .fallback
+    pet.pose = .sitting
+    pet.phase = 0.8
+    let pdf = NSImage(data: pet.dataWithPDF(inside: pet.bounds))!
+    pdf.draw(in: NSRect(x: w / 2 - 120, y: h - 132, width: 120, height: 116),
+             from: .zero, operation: .sourceOver, fraction: 1)
+
+    let title: [NSAttributedString.Key: Any] = [
+        .font: NSFont.systemFont(ofSize: 26, weight: .semibold),
+        .foregroundColor: NSColor.white]
+    let subtitle: [NSAttributedString.Key: Any] = [
+        .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+        .foregroundColor: NSColor(white: 1, alpha: 0.65)]
+    NSString(string: "Desktop Pet").draw(at: NSPoint(x: w / 2 + 10, y: h - 96), withAttributes: title)
+    let hint = NSString(string: "Drag the pet into your Applications folder")
+    let hintSize = hint.size(withAttributes: subtitle)
+    hint.draw(at: NSPoint(x: (w - hintSize.width) / 2, y: h - 150), withAttributes: subtitle)
+
+    // arrow between the two icon positions (icons sit at y ≈ 210 from the top)
+    let arrow = NSBezierPath()
+    arrow.move(to: NSPoint(x: 238, y: 168))
+    arrow.line(to: NSPoint(x: 362, y: 168))
+    arrow.lineWidth = 5
+    arrow.lineCapStyle = .round
+    NSColor(white: 1, alpha: 0.45).setStroke()
+    arrow.stroke()
+    let head = NSBezierPath()
+    head.move(to: NSPoint(x: 372, y: 168))
+    head.line(to: NSPoint(x: 350, y: 181))
+    head.line(to: NSPoint(x: 350, y: 155))
+    head.close()
+    NSColor(white: 1, alpha: 0.45).setFill()
+    head.fill()
+
+    let caption: [NSAttributedString.Key: Any] = [
+        .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+        .foregroundColor: NSColor(white: 1, alpha: 0.45)]
+    let note = NSString(string: "the  pet  command is added automatically on first launch")
+    let noteSize = note.size(withAttributes: caption)
+    note.draw(at: NSPoint(x: (w - noteSize.width) / 2, y: 26), withAttributes: caption)
+
+    NSGraphicsContext.restoreGraphicsState()
+    try! rep.representation(using: .png, properties: [:])!
+        .write(to: URL(fileURLWithPath: out))
     exit(0)
 }
 
@@ -2153,6 +2223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         trayHidden = Prefs.store.bool(forKey: "petTrayHidden")
         if !trayHidden { showTray() }
 
+        installCommandLineTool()
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(reloadFromPreferences),
             name: Notification.Name(Prefs.reloadNotification), object: nil)
@@ -2442,6 +2513,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let sk = skins[item.tag]
         apply(sk)
         populateSkinMenu()
+    }
+
+    /// Make `pet` available after a drag-install from the disk image. Only
+    /// ever creates or repoints a symlink to a Pet.app — another program
+    /// called `pet` is left alone.
+    func installCommandLineTool() {
+        let fm = FileManager.default
+        guard let exe = Bundle.main.executableURL?.resolvingSymlinksInPath(),
+              exe.lastPathComponent == "Pet" else { return }
+
+        var target: String?
+        for dir in ["/usr/local/bin", NSHomeDirectory() + "/.local/bin"] {
+            let link = dir + "/pet"
+            if let dest = try? fm.destinationOfSymbolicLink(atPath: link) {
+                if dest == exe.path { return }                  // already correct
+                if dest.contains("/Pet.app/Contents/MacOS/") {  // an older install
+                    try? fm.removeItem(atPath: link)
+                    try? fm.createSymbolicLink(atPath: link, withDestinationPath: exe.path)
+                    return
+                }
+                return                                          // someone else's `pet`
+            }
+            if fm.fileExists(atPath: link) { return }
+            if target == nil, fm.isWritableFile(atPath: dir) { target = dir }
+        }
+
+        let dir = target ?? NSHomeDirectory() + "/.local/bin"
+        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try? fm.createSymbolicLink(atPath: dir + "/pet", withDestinationPath: exe.path)
     }
 
     func showTray() {

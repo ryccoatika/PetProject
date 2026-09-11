@@ -24,6 +24,28 @@ the running pet.
 
 ## Sharing it
 
+### Disk image (drag and drop)
+
+    ./dmg.sh
+
+Produces `build/DesktopPet-1.0.dmg`: the usual Mac installer window with
+`Pet.app` beside an `Applications` shortcut, a background telling you to drag
+one onto the other, and a custom volume icon. The background is rendered by
+the app itself (`pet dmgbg`), and the window layout is set through Finder, so
+positions and background survive in the image's `.DS_Store`.
+
+Dragging the app in is all that is needed: on first launch it symlinks itself
+as `pet` into `/usr/local/bin` if that is writable, otherwise `~/.local/bin`.
+It only ever creates or repoints a link to a `Pet.app` — another program named
+`pet` is left alone.
+
+The one rough edge is Gatekeeper. The app is ad-hoc signed, not notarised, and
+a disk image cannot clear its own quarantine, so the first launch needs
+right-click → Open. The zip below avoids that because its installer script can
+clear the attribute.
+
+### Zip (scripted install)
+
     ./package.sh
 
 Produces `build/DesktopPet-1.0.zip` containing `Pet.app`, `install.sh` and a
