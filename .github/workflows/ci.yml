@@ -1,10 +1,19 @@
 name: CI
 
 on:
+  # Pushes to develop, so direct work there is checked without opening a PR.
+  # Not main: commits only reach it by merging a pull request that has already
+  # been checked, and the release workflow builds it again anyway.
   push:
-    branches: [develop, main]
+    branches: [develop]
   pull_request:
     branches: [develop, main]
+
+# A push to develop while a release pull request is open would otherwise check
+# the same commit twice. Keyed on the commit, so those two collapse into one.
+concurrency:
+  group: ci-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   check:
