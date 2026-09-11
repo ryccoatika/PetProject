@@ -53,14 +53,18 @@ extension CLI {
             }
             installPet(what)
         case "remove", "uninstall":
-            guard let id = args.dropFirst().first else { fail("usage: pet pets remove <id>") }
-            let folder = SpriteStore.directory.appendingPathComponent(id)
-            guard FileManager.default.fileExists(atPath: folder.path) else {
-                fail("no sprite pet \"\(id)\" installed")
-            }
-            try? FileManager.default.removeItem(at: folder)
-            print("removed \(tilde(folder))")
-            if Prefs.store.string(forKey: "petSkin") == id {
+            guard let name = args.dropFirst().first else { fail("usage: pet pets remove <id>") }
+            // A pack installed from a local folder keeps that folder's name,
+            // which need not match the id inside its pet.json — accept either.
+            let byFolder = SpriteStore.directory.appendingPathComponent(name)
+            let pack = FileManager.default.fileExists(atPath: byFolder.path)
+                ? SpritePet(folder: byFolder).map { (folder: byFolder, id: $0.id) }
+                : SpriteStore.load().first { $0.id == name }.map { (folder: $0.folder, id: $0.id) }
+            guard let pack else { fail("no sprite pet \"\(name)\" installed") }
+
+            try? FileManager.default.removeItem(at: pack.folder)
+            print("removed \(tilde(pack.folder))")
+            if Prefs.store.string(forKey: "petSkin") == pack.id {
                 Prefs.store.set("tabby", forKey: "petSkin")
                 Prefs.store.synchronize()
             }
