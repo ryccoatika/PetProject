@@ -50,9 +50,6 @@ a disk image cannot clear its own quarantine, so the first launch needs
 right-click → Open (or Open Anyway in System Settings → Privacy & Security).
 Notarising with a paid Apple Developer ID is the only way to remove that step.
 
-`install.sh` is still here for installing from a checkout or a copied folder
-without the disk image — it copies the app, clears the quarantine attribute and
-symlinks the CLI — but nothing packages it any more.
 
 ## App icon
 
@@ -73,9 +70,10 @@ icon is full colour; set the style to Default to see it that way.
 
 ## The `pet` command
 
-`install.sh` symlinks the app binary as `pet` (into `/usr/local/bin` if it is
-writable, otherwise `~/.local/bin`), so the CLI and the app are the same
-binary and never drift apart.
+The app symlinks its own binary as `pet` on first launch — into
+`/usr/local/bin` if that is writable, otherwise `~/.local/bin` — so the CLI and
+the app are the same binary and never drift apart. `./build.sh` refreshes the
+link too, pointing it at the copy in `~/Applications`.
 
     pet status              app state, config folder, skin, last activity
     pet start | stop | restart
