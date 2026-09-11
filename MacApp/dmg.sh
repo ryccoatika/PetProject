@@ -4,8 +4,10 @@ set -e
 cd "$(dirname "$0")"
 
 VOLNAME="Desktop Pet"
-VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
-          build/Pet.app/Contents/Info.plist 2>/dev/null || echo 1.0)
+# Same source of truth as build.sh and the release workflow, so the file this
+# writes is the one the release looks for. Reading it back out of the built
+# app instead would be a step behind: on a clean checkout there is no app yet.
+VERSION=$(cat ../VERSION 2>/dev/null || echo 0.0.0)
 DMG="build/DesktopPet-$VERSION.dmg"
 STAGE="build/dmg"
 RW="build/rw.dmg"
