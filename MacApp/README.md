@@ -39,6 +39,14 @@ as `pet` into `/usr/local/bin` if that is writable, otherwise `~/.local/bin`.
 It only ever creates or repoints a link to a `Pet.app` — another program named
 `pet` is left alone.
 
+On a stock Mac `/usr/local/bin` is owned by root, so the link usually lands in
+`~/.local/bin`, which is **not** on the default PATH — the command exists but
+the shell will not find it. The app cannot detect this itself (a Finder-
+launched app does not get the user's shell environment), so instead the menu
+says **Command Line Tool — needs PATH setup…**, and opening it shows where the
+command is and offers to copy the one line to add to `~/.zshrc`. Until then the
+full path works.
+
 The one rough edge is Gatekeeper. The app is ad-hoc signed, not notarised, and
 a disk image cannot clear its own quarantine, so the first launch needs
 right-click → Open. The zip below avoids that because its installer script can

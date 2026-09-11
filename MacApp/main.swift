@@ -2171,6 +2171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusRow: NSMenuItem!
     var visItem: NSMenuItem!
     var chaseItem: NSMenuItem!
+    var cliItem: NSMenuItem!
     var flashText = ""                 // brief pill message after a toggle
     var flashUntil = Date.distantPast
     var savedPos = CGPoint.zero        // last position written to preferences
@@ -2276,6 +2277,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.addItem(hint)
         mainMenu.addItem(.separator())
 
+        let cli = NSMenuItem(title: "Command Line Tool…", action: #selector(showCommandLineInfo),
+                             keyEquivalent: "")
+        cli.target = self
+        cliItem = cli
+        mainMenu.addItem(cli)
+        mainMenu.addItem(.separator())
+
         let quit = NSMenuItem(title: "Quit Pet", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         mainMenu.addItem(quit)
@@ -2286,6 +2294,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Cheap: only the values that change while the app runs.
     func refreshMenu() {
         statusRow?.title = statusSummary()
+        cliItem?.title = cliPath == nil ? "Install Command Line Tool…"
+                       : (cliOnDefaultPath ? "Command Line Tool…"
+                                           : "Command Line Tool — needs PATH setup…")
         visItem?.title = hidden ? "Show Pet" : "Hide Pet"
         chaseItem?.state = chaseWhenIdle ? .on : .off
     }
@@ -2542,6 +2553,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let dir = target ?? NSHomeDirectory() + "/.local/bin"
         try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         try? fm.createSymbolicLink(atPath: dir + "/pet", withDestinationPath: exe.path)
+        Prefs.store.set(dir + "/pet", forKey: "petCLIPath")
+    }
+
+    /// Where the `pet` command ended up, if we put it somewhere.
+    var cliPath: String? {
+        for dir in ["/usr/local/bin", NSHomeDirectory() + "/.local/bin"] {
+            if FileManager.default.fileExists(atPath: dir + "/pet") { return dir + "/pet" }
+        }
+        return nil
+    }
+
+    /// The system default PATH, so we can tell whether `pet` will be found.
+    /// The app's own PATH is useless here: a Finder-launched app does not get
+    /// the user's shell environment.
+    var cliOnDefaultPath: Bool {
+        guard let path = cliPath else { return false }
+        let dir = (path as NSString).deletingLastPathComponent
+        let system = (try? String(contentsOfFile: "/etc/paths", encoding: .utf8))?
+            .split(separator: "\n").map(String.init) ?? []
+        return system.contains(dir)
+    }
+
+    @objc func showCommandLineInfo() {
+        let alert = NSAlert()
+        guard let path = cliPath else {
+            alert.messageText = "The pet command is not installed"
+            alert.informativeText = "Reopening the app usually installs it. It normally goes to "
+                                  + "/usr/local/bin, or ~/.local/bin when that is not writable."
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+            return
+        }
+        let dir = (path as NSString).deletingLastPathComponent
+        let line = "export PATH=\"\(dir.replacingOccurrences(of: NSHomeDirectory(), with: "$HOME")):$PATH\""
+        alert.messageText = "The pet command is installed"
+        if cliOnDefaultPath {
+            alert.informativeText = "It is at \(CLI.tilde(URL(fileURLWithPath: path))) and should "
+                                  + "work in any terminal.\n\nTry:  pet help"
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+            return
+        }
+        alert.informativeText = "It is at \(CLI.tilde(URL(fileURLWithPath: path))), but that folder "
+                              + "is not on the default PATH, so your shell may not find it.\n\n"
+                              + "Add this line to your shell profile "
+                              + "(~/.zshrc):\n\n    \(line)\n\n"
+                              + "Until then the full path works:  \(path) help"
+        alert.addButton(withTitle: "Copy the line")
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(line, forType: .string)
+        }
     }
 
     func showTray() {
