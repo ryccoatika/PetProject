@@ -38,12 +38,20 @@ It only ever creates or repoints a link to a `Pet.app` — another program named
 `pet` is left alone.
 
 On a stock Mac `/usr/local/bin` is owned by root, so the link usually lands in
-`~/.local/bin`, which is **not** on the default PATH — the command exists but
-the shell will not find it. The app cannot detect this itself (a Finder-
-launched app does not get the user's shell environment), so instead the menu
-says **Command Line Tool — needs PATH setup…**, and opening it shows where the
-command is and offers to copy the one line to add to `~/.zshrc`. Until then the
-full path works.
+`~/.local/bin`, which is not on the default PATH — the command exists but the
+shell cannot find it.
+
+To know whether that is actually a problem the app asks the user's own login
+shell (`$SHELL -ilc 'command -v pet'`) in the background at launch. Its own
+environment cannot answer: launched from Finder it never sees the shell
+profile, and a folder missing from `/etc/paths` may well be added by the
+user's `.zshrc` — checking that file alone reports a problem that is not
+there.
+
+When the shell does find it, nothing is shown. When it does not, the menu
+grows a **⚠ Command Line Tool — needs PATH setup** entry that says where the
+command is and offers to copy the line for `~/.zshrc`. `pet status` and the
+runtime file report the same thing as `cli=ok` or `cli=needs-path`.
 
 The one rough edge is Gatekeeper. The app is ad-hoc signed, not notarised, and
 a disk image cannot clear its own quarantine, so the first launch needs

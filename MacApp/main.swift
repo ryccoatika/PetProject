@@ -1747,6 +1747,10 @@ enum CLI {
         let isRunning = !running.isEmpty
         print("app        : \(isRunning ? "running" : "not running")")
         if isRunning, let live { print("             \(live)") }
+        if let live, live.contains("cli=needs-path") {
+            print("             ! `pet` is installed but your shell cannot find it —")
+            print("               see Command Line Tool in the menu bar")
+        }
         print("config     : \(tilde(SkinStore.configDir))\(SkinStore.configDirIsFromEnvironment ? "  ($PET_CONFIG_DIR)" : SkinStore.isCustomConfigDir ? "  (custom)" : "")")
         let skins = SkinStore.load().skins
         print("skins      : \(skins.count) in \(tilde(SkinStore.userDir))")
@@ -2302,6 +2306,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var visItem: NSMenuItem!
     var chaseItem: NSMenuItem!
     var cliItem: NSMenuItem!
+    /// Whether `pet` resolves in the user's own shell. Assume it does until
+    /// the check says otherwise, so the warning never flashes up wrongly.
+    var cliReachable = true
     var flashText = ""                 // brief pill message after a toggle
     var flashUntil = Date.distantPast
     var savedPos = CGPoint.zero        // last position written to preferences
@@ -2363,6 +2370,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !trayHidden { showTray() }
 
         installCommandLineTool()
+        checkCommandLineReachable()
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(reloadFromPreferences),
             name: Notification.Name(Prefs.reloadNotification), object: nil)
@@ -2414,12 +2422,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.addItem(hint)
         mainMenu.addItem(.separator())
 
-        let cli = NSMenuItem(title: "Command Line Tool…", action: #selector(showCommandLineInfo),
-                             keyEquivalent: "")
-        cli.target = self
-        cliItem = cli
-        mainMenu.addItem(cli)
-        mainMenu.addItem(.separator())
+        if !cliReachable {
+            let cli = NSMenuItem(title: "Command Line Tool — needs PATH setup",
+                                 action: #selector(showCommandLineInfo), keyEquivalent: "")
+            cli.target = self
+            if let warning = NSImage(systemSymbolName: "exclamationmark.triangle.fill",
+                                     accessibilityDescription: "warning") {
+                let amber = NSImage.SymbolConfiguration(paletteColors: [.systemOrange])
+                cli.image = warning.withSymbolConfiguration(amber)
+            }
+            cliItem = cli
+            mainMenu.addItem(cli)
+            mainMenu.addItem(.separator())
+        } else {
+            cliItem = nil
+        }
 
         let quit = NSMenuItem(title: "Quit Pet", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -2431,9 +2448,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Cheap: only the values that change while the app runs.
     func refreshMenu() {
         statusRow?.title = statusSummary()
-        cliItem?.title = cliPath == nil ? "Install Command Line Tool…"
-                       : (cliOnDefaultPath ? "Command Line Tool…"
-                                           : "Command Line Tool — needs PATH setup…")
         visItem?.title = hidden ? "Show Pet" : "Hide Pet"
         chaseItem?.state = chaseWhenIdle ? .on : .off
     }
@@ -2505,7 +2519,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             skinMenu.addItem(it)
         }
         skinMenu.addItem(.separator())
-        for (title, sel) in [("Install Pet from codex-pets.net…", #selector(installSpritePet)),
+        for (title, sel) in [("Install Skin from codex-pets.net…", #selector(installSpritePet)),
                              ("Browse codex-pets.net", #selector(browseSpritePets)),
                              ("Import Skin…", #selector(importSkin)),
                              ("Export Current Skin…", #selector(exportSkin))] {
@@ -2515,12 +2529,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         skinMenu.addItem(.separator())
-        let where_ = NSMenuItem(title: "Skins: \(Self.tildePath(SkinStore.userDir))",
+        let where_ = NSMenuItem(title: "Config: \(Self.tildePath(SkinStore.configDir))",
                                 action: nil, keyEquivalent: "")
         where_.isEnabled = false
         skinMenu.addItem(where_)
 
-        var tail: [(String, Selector)] = [("Open Skins Folder", #selector(openSkinsFolder)),
+        var tail: [(String, Selector)] = [("Open Config Folder", #selector(openSkinsFolder)),
                                           ("Change Config Folder…", #selector(changeConfigFolder))]
         if SkinStore.isCustomConfigDir && !SkinStore.configDirIsFromEnvironment {
             tail.append(("Use Default Location", #selector(useDefaultConfigFolder)))
@@ -2572,7 +2586,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func openSkinsFolder() {
         SkinStore.seedIfEmpty()
-        NSWorkspace.shared.open(SkinStore.userDir)
+        NSWorkspace.shared.open(SkinStore.configDir)
     }
 
     @objc func browseSpritePets() {
@@ -2639,15 +2653,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
         panel.title = "Import Skin"
+        panel.message = "A .petskin file, or a codex-pets.net pack (folder or .zip)"
         panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        var types: [UTType] = [.json]
+        panel.canChooseDirectories = true          // packs arrive as folders
+        var types: [UTType] = [.json, .zip, .folder]
         if let t = UTType(filenameExtension: "petskin") { types.append(t) }
         panel.allowedContentTypes = types
         guard panel.runModal() == .OK else { return }
 
-        var imported: Skin?
+        var selected: String?
         for src in panel.urls {
+            if isSpritePack(src) {                  // a codex-pets.net pack
+                do { selected = try SpriteInstaller.install(src.path).id }
+                catch { alert("Could not import \(src.lastPathComponent)", error.localizedDescription) }
+                continue
+            }
             do {
                 let skin = try Skin(contentsOf: src)       // validate before copying
                 let dest = SkinStore.userDir.appendingPathComponent(src.lastPathComponent)
@@ -2655,22 +2675,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     try FileManager.default.removeItem(at: dest)
                 }
                 try FileManager.default.copyItem(at: src, to: dest)
-                imported = skin
+                selected = skin.id
             } catch {
                 alert("Could not import \(src.lastPathComponent)", error.localizedDescription)
             }
         }
         reloadSkins()
-        if let skin = imported, let match = skins.first(where: { $0.id == skin.id }) {
-            apply(match)
-        }
+        if let selected { _ = applyArt(id: selected) }
         populateSkinMenu()
+    }
+
+    /// A spritesheet pack: a folder holding pet.json, or any zip.
+    func isSpritePack(_ url: URL) -> Bool {
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+            return FileManager.default.fileExists(atPath: url.appendingPathComponent("pet.json").path)
+        }
+        return url.pathExtension.lowercased() == "zip"
     }
 
     @objc func exportSkin() {
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSSavePanel()
         panel.title = "Export Skin"
+
+        if let pet = view.sprite {                  // a pack, exported as a zip
+            panel.nameFieldStringValue = "\(pet.id).codex-pet.zip"
+            panel.allowedContentTypes = [.zip]
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            try? FileManager.default.removeItem(at: url)
+            let ditto = Process()
+            ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            ditto.arguments = ["-c", "-k", pet.folder.path, url.path]
+            try? ditto.run()
+            ditto.waitUntilExit()
+            if ditto.terminationStatus == 0 { flash("exported") }
+            else { alert("Could not export \(pet.name)", "The pack could not be archived.") }
+            return
+        }
+
         panel.nameFieldStringValue = "\(view.skin.id).petskin"
         if let t = UTType(filenameExtension: "petskin") { panel.allowedContentTypes = [t] }
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -2774,6 +2817,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Prefs.store.set(dir + "/pet", forKey: "petCLIPath")
     }
 
+    /// Ask the user's login shell whether `pet` is on its PATH. The app's own
+    /// environment cannot answer this: launched from Finder it never sees the
+    /// shell's profile, and a folder missing from /etc/paths may still be
+    /// added by the user's own .zshrc.
+    func checkCommandLineReachable() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+            let probe = Process()
+            probe.executableURL = URL(fileURLWithPath: shell)
+            probe.arguments = ["-ilc", "command -v pet"]
+            let pipe = Pipe()
+            probe.standardOutput = pipe
+            probe.standardError = FileHandle.nullDevice
+            guard (try? probe.run()) != nil else { return }
+            // a broken profile must not leave the probe hanging around
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+                if probe.isRunning { probe.terminate() }
+            }
+            let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(),
+                                encoding: .utf8) ?? ""
+            probe.waitUntilExit()
+            let found = probe.terminationStatus == 0 && output.contains("/pet")
+            DispatchQueue.main.async {
+                guard let self, found != self.cliReachable else { return }
+                self.cliReachable = found
+                self.writeRuntime()
+                self.buildMenu()               // the warning appears or goes away
+            }
+        }
+    }
+
     /// Where the `pet` command ended up, if we put it somewhere.
     var cliPath: String? {
         for dir in ["/usr/local/bin", NSHomeDirectory() + "/.local/bin"] {
@@ -2794,6 +2868,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func showCommandLineInfo() {
+        checkCommandLineReachable()          // it may have been fixed since
         let alert = NSAlert()
         guard let path = cliPath else {
             alert.messageText = "The pet command is not installed"
@@ -2910,7 +2985,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let line = "pid=\(ProcessInfo.processInfo.processIdentifier) "
                  + "skin=\(view.sprite?.id ?? view.skin.id) "
                  + "hidden=\(hidden ? 1 : 0) chase=\(chaseWhenIdle ? 1 : 0) "
-                 + "tray=\(trayHidden ? "hidden" : "shown")\n"
+                 + "tray=\(trayHidden ? "hidden" : "shown") "
+                 + "cli=\(cliReachable ? "ok" : "needs-path")\n"
         try? line.write(to: dir.appendingPathComponent("runtime"), atomically: true, encoding: .utf8)
     }
 
