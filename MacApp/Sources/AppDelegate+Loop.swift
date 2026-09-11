@@ -247,7 +247,7 @@ extension AppDelegate {
         let active = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
         isActive = active
         advanceSprite()
-        if Date() < flashUntil { view.label = flashText }
+        view.flashLabel = Date() < flashUntil ? flashText : nil
         view.phase += (active ? 0.3 : 0.07) * tickScale
         view.hop = view.pose == .celebrate ? abs(sin(view.phase * 1.9)) * 16 : 0
 
@@ -294,7 +294,7 @@ extension AppDelegate {
         } else {
             // sprite frames change every few ticks; redraw only then
             let signature = "\(view.spriteFrame)|\(view.pose)|\(view.held)|"
-                          + "\(Int(pos.x))|\(Int(pos.y))|\(view.label ?? "")"
+                          + "\(Int(pos.x))|\(Int(pos.y))|\(view.flashLabel ?? "")"
             if signature != lastSpriteSignature {
                 lastSpriteSignature = signature
                 view.needsDisplay = true

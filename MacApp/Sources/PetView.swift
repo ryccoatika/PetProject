@@ -13,6 +13,9 @@ final class PetView: NSView {
     var eyeOffset = CGPoint.zero
     var zPhase: CGFloat = 0
     var label: String? = nil          // pill text under the pet
+    /// A brief confirmation of something the user just did. Shown for every
+    /// skin, where `label` describes the activity and sprite packs do not.
+    var flashLabel: String? = nil
     var hop: CGFloat = 0              // celebrate bounce
     var held = false                  // being dragged by the user
 
@@ -150,23 +153,19 @@ final class PetView: NSView {
         case .celebrate:     drawSparkles()
         default: break
         }
-        if let l = label { drawPill(l) }
+        if let l = flashLabel ?? label { drawPill(l) }
     }
 
     /// Spritesheet pets use the atlas rows in place of the drawn poses.
+    ///
+    /// No pill and no bubbles: the pack animates what it is doing — Running
+    /// while a tool runs, Review while thinking, Waiting when it needs you —
+    /// so the drawn ornaments would only cover the art. A confirmation the
+    /// user just asked for ("chase on", "installing…") is still worth showing.
     func drawSprite(_ sprite: SpritePet) {
         let box = NSRect(x: 0, y: 16, width: bounds.width, height: bounds.height - 26)
         sprite.draw(track: spriteTrack, frame: spriteFrame, in: box)
-
-        // the pill and bubbles still apply
-        switch pose {
-        case .sleeping:      drawZs()
-        case .thinking:      drawThoughtBubble()
-        case .alert, .failed: drawBangBubble()
-        case .celebrate:     drawSparkles()
-        default: break
-        }
-        if let label { drawPill(label) }
+        if let flashLabel { drawPill(flashLabel) }
     }
 
     /// Which atlas row the current pose maps to.

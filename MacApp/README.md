@@ -241,6 +241,13 @@ documented 6).
 
 Rows 9 and 10 are v2 only; on a v1 sheet they fall back to Idle.
 
+A sprite pack is drawn on its own: no pill and no thought bubble, `!` bubble,
+sparkles or `z`s. The pack already animates what is happening — Running while
+a tool runs, Review while thinking, Waiting when it needs you — so the drawn
+ornaments would only cover the art. The drawn skins keep them, since their
+poses are subtler. Brief confirmations of something you just did ("chase on",
+"installing…") still appear on every skin.
+
     ./build/pet render --tracks tracks.png
 
 renders every track of every installed pack for checking.
