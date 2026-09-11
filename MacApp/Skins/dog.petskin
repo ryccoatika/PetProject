@@ -1,0 +1,15 @@
+{
+  "id": "dog",
+  "name": "Dog",
+  "colors": {
+    "body": "#CC9963",
+    "bodyDark": "#996940",
+    "belly": "#FCF0DB",
+    "ink": "#38261C",
+    "accent": "#40302B"
+  },
+  "traits": {
+    "crest": "floppy",
+    "snout": true
+  }
+}

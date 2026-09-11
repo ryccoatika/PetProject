@@ -1,0 +1,14 @@
+{
+  "id": "dino",
+  "name": "Dino",
+  "colors": {
+    "body": "#7AC782",
+    "bodyDark": "#59A163",
+    "belly": "#F2F0BD",
+    "ink": "#1F3826",
+    "accent": "#FAA187"
+  },
+  "traits": {
+    "crest": "spikes"
+  }
+}

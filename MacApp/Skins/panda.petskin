@@ -1,0 +1,16 @@
+{
+  "id": "panda",
+  "name": "Panda",
+  "colors": {
+    "body": "#FAFAF7",
+    "bodyDark": "#2B2B33",
+    "belly": "#EBEBE8",
+    "ink": "#212129",
+    "accent": "#2B2B33"
+  },
+  "traits": {
+    "crest": "round",
+    "eyePatches": true,
+    "darkLimbs": true
+  }
+}

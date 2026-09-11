@@ -1,0 +1,16 @@
+{
+  "id": "tabby",
+  "name": "Tabby cat",
+  "colors": {
+    "body": "#F5AB5C",
+    "bodyDark": "#D9853D",
+    "belly": "#FFF0D9",
+    "ink": "#33241C",
+    "accent": "#F599A1"
+  },
+  "traits": {
+    "crest": "ears",
+    "stripes": true,
+    "whiskers": true
+  }
+}

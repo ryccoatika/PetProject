@@ -1,0 +1,220 @@
+# Desktop Pet — macOS app
+
+The macOS app of the Desktop Pet project (`~/Developments/PetProjects`);
+a mobile version is planned alongside it. Skin files are intended to be
+shared between platforms.
+
+A macOS desktop pet that reacts to Claude Code. A transparent, always-on-top
+window draws an animated creature that changes pose based on what Claude is
+doing. All artwork is vector-drawn in code — no image assets.
+
+## Build
+
+    ./build.sh
+
+Compiles `main.swift` and bundles `Pet.app` (menu-bar only, `LSUIElement`),
+both into `build/`, then installs the app to `~/Applications` and restarts
+the running pet.
+
+    build/
+    ├── pet           compiled binary
+    ├── icon.png      1024px app icon, rendered by the app itself
+    ├── Pet.iconset/  the sizes iconutil needs
+    └── Pet.app       app bundle: Skins/ and Pet.icns in Contents/Resources
+
+## Sharing it
+
+    ./package.sh
+
+Produces `build/DesktopPet-1.0.zip` containing `Pet.app`, `install.sh` and a
+short `README.txt`. The recipient unzips it and runs:
+
+    sh install.sh           the app and the `pet` command
+    pet plugin install      optional: make it react to Claude Code
+
+The installer copies `Pet.app` to `~/Applications`, symlinks `pet`, clears the
+download quarantine, and launches it — no Claude config is touched unless they
+choose to run the plugin command. The hook script is compiled into the binary,
+so the plugin needs no extra files in the zip.
+
+The build is a universal binary (Intel + Apple Silicon) with a macOS 12
+deployment target. It is ad-hoc signed, not notarised: `install.sh` clears
+the quarantine attribute, but anyone who drags `Pet.app` out by hand has to
+right-click → Open the first time. Notarising would need a paid Apple
+Developer ID.
+
+## App icon
+
+The icon is drawn by the app from the same vector art as the pet — there is
+no image file to maintain:
+
+    ./build/pet --icon 1024 icon.png
+
+`build.sh` renders it, resizes it into `Pet.iconset`, runs `iconutil` to make
+`Pet.icns`, and `Info.plist` points at it with `CFBundleIconFile`. To restyle
+the icon, edit the `--icon` block in `main.swift`.
+
+Note: on macOS 26 the systemwide *icon style* (System Settings → Appearance)
+can render every app icon monochrome — `ClearDark` and `Tinted` both do. The
+icon is full colour; set the style to Default to see it that way.
+
+`build/` is generated and git-ignored.
+
+## The `pet` command
+
+`install.sh` symlinks the app binary as `pet` (into `/usr/local/bin` if it is
+writable, otherwise `~/.local/bin`), so the CLI and the app are the same
+binary and never drift apart.
+
+    pet status              app state, config folder, skin, last activity
+    pet start | stop | restart
+    pet show | hide         the pet itself
+    pet tray show | hide    the menu bar icon
+    pet skins               list skins, current one marked
+    pet skin <id>           switch skin
+    pet skins dir           print the skins folder
+    pet config              config folder and where the setting came from
+    pet config set <path>   move it
+    pet config reset        back to ~/.config/pet
+    pet plugin install [agent]   claude | codex | gemini | opencode (see ../Plugins)
+    pet plugin uninstall [agent] | pet plugin status
+    pet plugin install claude --path <dir>   a non-default config folder
+    pet uninstall [--all]   remove app + CLI (--all also removes the config)
+    pet render <file>       skin x pose sheet
+    pet icon [size] <file>  the app icon
+
+Hiding the menu bar icon leaves the pet running with no visible controls, so
+`pet tray hide` prints how to undo it and the menu item shows an alert saying
+the same — `pet tray show` is the way back. The setting persists across
+restarts.
+
+Changes apply to a running pet immediately: the CLI writes the preference and
+posts a distributed notification, and the app re-reads and redraws — no
+restart. The app also keeps `<configDir>/runtime` up to date so `pet status`
+reports what the live process is doing rather than just what is stored.
+
+`pet` with no arguments prints this help; `pet -h`, `--help` and `--version`
+work as expected. The pet itself only starts when the bundle's own executable
+is run — `Contents/MacOS/Pet`, which is how Finder, `open` and `pet start`
+launch it — so the decision never depends on guessing at pipes or terminals.
+
+`pet render`/`pet icon` and the older `--render`/`--icon` flags both work.
+
+## Preview the artwork
+
+    ./build/pet --render sheet.png
+
+Renders every skin against every pose to one sheet — useful for checking
+drawing changes without running the app.
+
+## Reacting to activity
+
+The pet polls a single file and maps what it finds to a pose:
+
+    ~/.config/pet/state        (or $PET_CONFIG_DIR/state)
+
+    EVENT|TOOL|EPOCH           e.g.  PreToolUse|Edit|1789137504
+
+| Event | Pose |
+|-------|------|
+| `UserPromptSubmit`, `PostToolUse` | thinking, thought bubble |
+| `PreToolUse` | typing at a laptop, `TOOL` in the pill |
+| `Notification` | alert, `!` bubble, "needs you" |
+| `Stop` | celebrating for ~2.4s, then idle |
+| nothing recent | sitting → grooming → asleep |
+
+`pet event <name>` is what writes that line: agent hooks call the CLI
+directly, so there is no generated shell script anywhere. The app itself knows
+nothing about any particular agent — anything that writes that line can drive
+it. Claude Code, Codex, Gemini CLI and opencode are supported out of the box;
+see [`../Plugins`](../Plugins). Without a plugin the pet simply idles, wanders and
+sleeps.
+
+## Interaction
+
+- **Drag** the pet anywhere; the drop position is remembered.
+- **Double-click** toggles chase mode (follow the cursor while Claude is idle).
+- **Menu bar 🐈**: live status, skin picker, chase toggle, quit.
+- Clicks only register on the creature itself; everywhere else in its window
+  they pass through to the app underneath.
+
+## Skins
+
+Skins are data, not code. Each one is a `.petskin` file (JSON):
+
+```json
+{
+  "id": "fox",
+  "name": "Fox",
+  "colors": {
+    "body":     "#E4703A",
+    "bodyDark": "#B04A22",
+    "belly":    "#FFF5EC",
+    "ink":      "#2E1A12",
+    "accent":   "#2E1A12"
+  },
+  "traits": {
+    "crest": "ears",
+    "whiskers": true,
+    "darkLimbs": true
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `id` | unique key, also the saved preference value |
+| `name` | label in the menu |
+| `colors.body` / `bodyDark` | main coat and its shadow tone (ears, stripes, plates) |
+| `colors.belly` | belly patch, muzzle patch and paws |
+| `colors.ink` | outlines |
+| `colors.accent` | nose and inner ear |
+| `traits.crest` | `ears`, `floppy`, `round` or `spikes` |
+| `traits.stripes` | dark bars along the back |
+| `traits.whiskers` | whiskers on the muzzle |
+| `traits.snout` | broad muzzle patch with a rounded nose |
+| `traits.eyePatches` | dark markings around the eyes |
+| `traits.darkLimbs` | legs, tail and paws use `bodyDark` |
+
+Colours are `#RRGGBB` (or `#RRGGBBAA`). Every trait is optional and
+defaults to `false`.
+
+### Where they live
+
+    ~/.config/pet/skins/
+
+The skins folder is `skins/` inside the config folder, which is resolved in
+this order:
+
+1. `$PET_CONFIG_DIR` — wins over everything, expands `~`
+2. the folder chosen with **Change Config Folder…** in the menu
+3. `~/.config/pet` (default)
+
+An empty skins folder is filled automatically: first from an older install's
+folder (`~/Library/Application Support/DesktopPet/Skins`, so a custom skin
+survives the move), otherwise from the copies shipped inside the app bundle.
+Deleting the folder therefore restores the shipped set. `Skins/` in this repo
+is the source for those copies.
+
+    PET_CONFIG_DIR=~/dotfiles/pet ./build/pet --render sheet.png
+
+### Managing them
+
+Menu bar 🐈 → **Skin**:
+
+- **Import Skin…** — validates the file, then copies it into the folder
+- **Export Current Skin…** — writes the active skin out as `<id>.petskin`
+- **Open Skins Folder** — reveals the folder in Finder
+- **Change Config Folder…** — pick a different config folder; skins are read
+  from `skins/` inside it. Disabled when `$PET_CONFIG_DIR` is set.
+- **Use Default Location** — shown only while a custom folder is in use
+- **Reload Skins** — re-reads from disk
+
+The submenu also shows the current skins path, so it is always clear which
+folder is in effect.
+
+The submenu re-reads the folder every time it opens, so a file dropped in
+shows up without restarting. A skin file that fails to parse is skipped and
+listed in the submenu with the reason; the rest still load.
+
+Shipped: Tabby cat, Dog, Panda, Dino.
