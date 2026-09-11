@@ -2598,7 +2598,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func installSpritePet() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Install a pet from codex-pets.net"
+        alert.messageText = "Install a skin from codex-pets.net"
         alert.informativeText = "Paste a link such as\n"
                               + "https://codex-pets.net/#/pets/gugakurumiusa\n\n"
                               + "or just the id:  gugakurumiusa"
@@ -2643,7 +2643,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func report(error message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Could not install that pet"
+        alert.messageText = "Could not install that skin"
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
