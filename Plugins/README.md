@@ -10,10 +10,18 @@ Supported agents: **Claude Code**, **Codex**, **Gemini CLI** and **opencode**.
 
 ## Install
 
+From the menu bar: 🐈 → **Agent Plugin**, which lists every supported agent
+with a tick beside the ones the pet is wired into. Clicking a row installs or
+removes that agent's hooks. Agents that are not installed on the machine are
+shown greyed out, and a Claude folder outside the managed one that still holds
+pet hooks gets its own row offering to clean it.
+
+Or from the terminal:
+
     pet plugin install            every agent found on this machine
     pet plugin install claude     claude | codex | gemini | opencode
     pet plugin status
-    pet plugin uninstall [agent]
+    pet plugin uninstall [agent]  with no agent: every one of them
 
 Then start a new session in that agent so the hooks load. The `pet` command
 comes with the app, so there is nothing else to copy and no separate installer

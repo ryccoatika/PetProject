@@ -2327,6 +2327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var sprites: [SpritePet] = []
     var skinErrors: [String] = []
     var skinMenu = NSMenu()
+    var pluginMenu = NSMenu()
     let mainMenu = NSMenu()
     var statusRow: NSMenuItem!
     var visItem: NSMenuItem!
@@ -2434,6 +2435,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         populateSkinMenu()
         skinItem.submenu = skinMenu
         mainMenu.addItem(skinItem)
+
+        let pluginItem = NSMenuItem(title: "Agent Plugin", action: nil, keyEquivalent: "")
+        pluginMenu.delegate = self         // re-read from disk each time it opens
+        pluginMenu.autoenablesItems = false
+        populatePluginMenu()
+        pluginItem.submenu = pluginMenu
+        mainMenu.addItem(pluginItem)
         mainMenu.addItem(.separator())
 
         chaseItem = NSMenuItem(title: "Chase cursor when idle",
@@ -2484,6 +2492,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             reloadSkins()
             populateSkinMenu()
         }
+        if menu === pluginMenu { populatePluginMenu() }
     }
 
     func statusSummary() -> String {
@@ -2606,6 +2615,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         reloadSkins()
         populateSkinMenu()
         flash("default location")
+    }
+
+    /// One row per agent: ticked when the pet is wired into it, and clicking
+    /// installs or removes the hooks.
+    func populatePluginMenu() {
+        pluginMenu.removeAllItems()
+        for (i, host) in HookHost.all.enumerated() {
+            let registered = HookPlugin.isRegistered(host)
+            let title = host.isPresent || registered ? host.name : "\(host.name) — not installed"
+            let it = NSMenuItem(title: title, action: #selector(togglePlugin(_:)), keyEquivalent: "")
+            it.target = self
+            it.tag = i
+            it.state = registered ? .on : .off
+            it.isEnabled = host.isPresent || registered
+            pluginMenu.addItem(it)
+        }
+
+        pluginMenu.addItem(.separator())
+        let hint = NSMenuItem(title: "Tick an agent to let it drive the pet",
+                              action: nil, keyEquivalent: "")
+        hint.isEnabled = false
+        pluginMenu.addItem(hint)
+
+        // a folder we manage that an older install left hooks in
+        let managed = Set(HookHost.claude.files.map {
+            $0.deletingLastPathComponent().standardizedFileURL.path
+        })
+        for dir in HookHost.otherClaudeDirs(besides: managed)
+        where HookPlugin.registeredCount(in: dir.appendingPathComponent("settings.json")) > 0 {
+            let it = NSMenuItem(title: "Also in \(CLI.tilde(dir)) — remove",
+                                action: #selector(removeStrayPlugin(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = dir
+            pluginMenu.addItem(it)
+        }
+    }
+
+    @objc func togglePlugin(_ item: NSMenuItem) {
+        guard item.tag < HookHost.all.count else { return }
+        let host = HookHost.all[item.tag]
+        let registered = HookPlugin.isRegistered(host)
+        HookPlugin.apply(host, remove: registered)
+        populatePluginMenu()
+        flash(registered ? "\(host.id) plugin removed" : "\(host.id) plugin added")
+    }
+
+    @objc func removeStrayPlugin(_ item: NSMenuItem) {
+        guard let dir = item.representedObject as? URL else { return }
+        HookPlugin.apply(HookHost.claude.targeting([dir]), remove: true)
+        populatePluginMenu()
+        flash("removed from \(dir.lastPathComponent)")
     }
 
     @objc func reloadSkinsMenu() { reloadSkins(); populateSkinMenu(); flash("skins reloaded") }
