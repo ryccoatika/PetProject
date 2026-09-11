@@ -153,6 +153,7 @@ Besides the drawn skins, the pet can be a spritesheet character from
 [codex-pets.net](https://codex-pets.net):
 
     pet pets install perlica-endfield     download from the marketplace
+    pet pets install https://codex-pets.net/#/pets/gugakurumiusa
     pet pets install ~/Downloads/foo.codex-pet   a local folder or .zip
     pet pets                              list what is installed
     pet pets remove <id>
@@ -160,6 +161,18 @@ Besides the drawn skins, the pet can be a spritesheet character from
 
 Packs land in `~/.config/pet/pets/<id>/` and appear in the menu and in
 `pet skins` alongside the drawn skins.
+
+From the menu bar it is 🐈 → Skin → **Install Pet from codex-pets.net…**, which
+asks for a link or an id — a pasted `codex-pets.net` link on the clipboard is
+filled in for you. **Browse codex-pets.net** opens the gallery. Downloading
+happens in the background, so the pet keeps animating, and the new pet is
+selected as soon as it lands. Option-click an installed pet in that menu to
+remove it.
+
+The same forms work everywhere: a bare id, `https://codex-pets.net/#/pets/<id>`,
+`/pets/<id>`, an `/api/pets/<id>/download` link, a direct `.zip` URL, or a
+local folder or zip. A link to any other site is refused rather than being
+guessed at.
 
 ### The atlas
 

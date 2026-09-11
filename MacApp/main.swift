@@ -1426,6 +1426,164 @@ enum HookPlugin {
     }
 }
 
+// MARK: - Installing sprite pets
+
+/// Shared by the CLI and the menu, so both accept the same things and behave
+/// the same way.
+enum SpriteInstaller {
+    struct Failure: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
+    /// True when the source has to be fetched rather than copied from disk.
+    static func isRemote(_ source: String) -> Bool {
+        let text = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        if FileManager.default.fileExists(atPath: SkinStore.expand(text).path) { return false }
+        return true
+    }
+
+    /// Pull the pet id out of whatever the user pasted:
+    ///   gugakurumiusa
+    ///   https://codex-pets.net/#/pets/gugakurumiusa
+    ///   https://codex-pets.net/pets/gugakurumiusa
+    ///   https://codex-pets.net/api/pets/gugakurumiusa/download?v=123
+    static func petID(from source: String) -> String? {
+        var text = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+
+        if let query = text.firstIndex(of: "?") { text = String(text[..<query]) }
+        // a link to somewhere else is not a marketplace id
+        if text.lowercased().hasPrefix("http"), !text.lowercased().contains("codex-pets.net") {
+            return nil
+        }
+        if text.lowercased().hasPrefix("http") || text.contains("/") {
+            let parts = text
+                .replacingOccurrences(of: "#", with: "/")
+                .split(separator: "/")
+                .map(String.init)
+                .filter { !$0.isEmpty && $0 != "https:" && $0 != "http:" }
+            if let index = parts.lastIndex(of: "pets"), index + 1 < parts.count {
+                return clean(parts[index + 1])
+            }
+            // a bare .../download URL, or something unexpected
+            if let last = parts.last, last != "download" { return clean(last) }
+            if parts.count >= 2 { return clean(parts[parts.count - 2]) }
+            return nil
+        }
+        return clean(text)
+    }
+
+    private static func clean(_ id: String) -> String? {
+        let allowed = CharacterSet(charactersIn:
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.rangeOfCharacter(from: allowed.inverted) == nil else {
+            return nil
+        }
+        return trimmed
+    }
+
+    /// Where to fetch from and what to call the pack once it lands.
+    static func remoteSource(_ source: String) -> (url: URL, id: String)? {
+        let text = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        // a direct link to an archive is used as given, wherever it is hosted
+        if text.lowercased().hasPrefix("http"), text.lowercased().hasSuffix(".zip"),
+           let url = URL(string: text) {
+            let name = url.deletingPathExtension().lastPathComponent
+                .replacingOccurrences(of: ".codex-pet", with: "")
+            guard let id = clean(name) else { return nil }
+            return (url, id)
+        }
+        guard let id = petID(from: text),
+              let url = URL(string: "https://codex-pets.net/api/pets/\(id)/download")
+        else { return nil }
+        return (url, id)
+    }
+
+    static func downloadURL(for source: String) -> URL? { remoteSource(source)?.url }
+
+    /// True when the source names something installable.
+    static func looksValid(_ source: String) -> Bool {
+        let text = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        if FileManager.default.fileExists(atPath: SkinStore.expand(text).path) { return true }
+        return remoteSource(text) != nil
+    }
+
+    @discardableResult
+    static func install(_ source: String) throws -> SpritePet {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: SpriteStore.directory, withIntermediateDirectories: true)
+
+        let text = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let local = SkinStore.expand(text)
+        if fm.fileExists(atPath: local.path) {
+            var isDir: ObjCBool = false
+            _ = fm.fileExists(atPath: local.path, isDirectory: &isDir)
+            let id = local.deletingPathExtension().lastPathComponent
+                .replacingOccurrences(of: ".codex-pet", with: "")
+            return isDir.boolValue ? try copyFolder(local, id: id)
+                                   : try unpack(zip: local, id: id)
+        }
+
+        guard let remote = remoteSource(text) else {
+            throw Failure(message: "\"\(text)\" is not a pet id, a codex-pets.net link, "
+                                 + "or a file on disk")
+        }
+        let (url, id) = remote
+        guard let data = try? Data(contentsOf: url), !data.isEmpty else {
+            throw Failure(message: "could not download \(url.absoluteString) — check the id "
+                                 + "and your connection")
+        }
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("\(id).codex-pet.zip")
+        try? data.write(to: tmp)
+        defer { try? fm.removeItem(at: tmp) }
+        return try unpack(zip: tmp, id: id)
+    }
+
+    private static func unpack(zip: URL, id: String) throws -> SpritePet {
+        let dest = SpriteStore.directory.appendingPathComponent(id)
+        try? FileManager.default.removeItem(at: dest)
+        try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        let unzip = Process()
+        unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        unzip.arguments = ["-o", "-q", zip.path, "-d", dest.path]
+        try? unzip.run()
+        unzip.waitUntilExit()
+        return try finish(dest)
+    }
+
+    private static func copyFolder(_ folder: URL, id: String) throws -> SpritePet {
+        let dest = SpriteStore.directory.appendingPathComponent(id)
+        try? FileManager.default.removeItem(at: dest)
+        do { try FileManager.default.copyItem(at: folder, to: dest) }
+        catch { throw Failure(message: "could not copy \(folder.path): \(error.localizedDescription)") }
+        return try finish(dest)
+    }
+
+    /// Some packs unzip into a nested folder; flatten that, then validate.
+    private static func finish(_ dest: URL) throws -> SpritePet {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: dest.appendingPathComponent("pet.json").path) {
+            let inner = ((try? fm.contentsOfDirectory(at: dest, includingPropertiesForKeys: nil)) ?? [])
+                .first { fm.fileExists(atPath: $0.appendingPathComponent("pet.json").path) }
+            if let inner {
+                for file in (try? fm.contentsOfDirectory(at: inner, includingPropertiesForKeys: nil)) ?? [] {
+                    try? fm.moveItem(at: file, to: dest.appendingPathComponent(file.lastPathComponent))
+                }
+                try? fm.removeItem(at: inner)
+            }
+        }
+        guard let pet = SpritePet(folder: dest) else {
+            try? fm.removeItem(at: dest)
+            throw Failure(message: "that does not look like a pet pack "
+                                 + "(it needs pet.json and a spritesheet)")
+        }
+        return pet
+    }
+}
+
 // MARK: - CLI
 
 enum CLI {
@@ -1690,79 +1848,20 @@ enum CLI {
         }
     }
 
-    /// Accepts a marketplace id, a direct URL, or a local folder or .zip.
+    /// Accepts a marketplace id, a codex-pets.net link, a direct URL, or a
+    /// local folder or .zip.
     static func installPet(_ source: String) {
-        let fm = FileManager.default
-        try? fm.createDirectory(at: SpriteStore.directory, withIntermediateDirectories: true)
-
-        let local = SkinStore.expand(source)
-        if fm.fileExists(atPath: local.path) {
-            var isDir: ObjCBool = false
-            _ = fm.fileExists(atPath: local.path, isDirectory: &isDir)
-            if isDir.boolValue {
-                installPetFolder(local, id: local.lastPathComponent
-                    .replacingOccurrences(of: ".codex-pet", with: ""))
-            } else {
-                unpack(zip: local, id: local.deletingPathExtension().lastPathComponent
-                    .replacingOccurrences(of: ".codex-pet", with: ""))
-            }
-            return
+        if SpriteInstaller.isRemote(source), let url = SpriteInstaller.downloadURL(for: source) {
+            print("downloading \(url.absoluteString)…")
         }
-
-        let id = source.hasPrefix("http") ? URL(string: source)?.lastPathComponent ?? "pet" : source
-        let url = source.hasPrefix("http") ? source
-            : "https://codex-pets.net/api/pets/\(source)/download"
-        print("downloading \(url)…")
-        guard let remote = URL(string: url), let data = try? Data(contentsOf: remote), !data.isEmpty else {
-            fail("could not download \(url)")
+        do {
+            let pet = try SpriteInstaller.install(source)
+            print("installed \(pet.name) (\(pet.id)) — \(pet.rows) rows, "
+                + "\(Int(pet.cell.width))x\(Int(pet.cell.height)) frames")
+            print("use it with: pet skin \(pet.id)")
+        } catch {
+            fail(error.localizedDescription)
         }
-        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("\(id).codex-pet.zip")
-        try? data.write(to: tmp)
-        unpack(zip: tmp, id: id)
-        try? fm.removeItem(at: tmp)
-    }
-
-    private static func unpack(zip: URL, id: String) {
-        let dest = SpriteStore.directory.appendingPathComponent(id)
-        try? FileManager.default.removeItem(at: dest)
-        try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-        let unzip = Process()
-        unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        unzip.arguments = ["-o", "-q", zip.path, "-d", dest.path]
-        try? unzip.run()
-        unzip.waitUntilExit()
-        finish(dest, id: id)
-    }
-
-    private static func installPetFolder(_ folder: URL, id: String) {
-        let dest = SpriteStore.directory.appendingPathComponent(id)
-        try? FileManager.default.removeItem(at: dest)
-        do { try FileManager.default.copyItem(at: folder, to: dest) }
-        catch { fail("could not copy \(folder.path): \(error.localizedDescription)") }
-        finish(dest, id: id)
-    }
-
-    /// Some packs unzip into a nested folder; flatten that, then validate.
-    private static func finish(_ dest: URL, id: String) {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: dest.appendingPathComponent("pet.json").path) {
-            let inner = ((try? fm.contentsOfDirectory(at: dest, includingPropertiesForKeys: nil)) ?? [])
-                .first { fm.fileExists(atPath: $0.appendingPathComponent("pet.json").path) }
-            if let inner {
-                for file in (try? fm.contentsOfDirectory(at: inner, includingPropertiesForKeys: nil)) ?? [] {
-                    try? fm.moveItem(at: file, to: dest.appendingPathComponent(file.lastPathComponent))
-                }
-                try? fm.removeItem(at: inner)
-            }
-        }
-        guard let pet = SpritePet(folder: dest) else {
-            try? fm.removeItem(at: dest)
-            fail("that does not look like a pet pack (needs pet.json and a spritesheet)")
-        }
-        print("installed \(pet.name) (\(pet.id)) — \(pet.rows) rows, "
-            + "\(Int(pet.cell.width))x\(Int(pet.cell.height)) frames")
-        print("use it with: pet skin \(pet.id)")
     }
 
     static func setSkin(_ id: String?) {
@@ -2352,7 +2451,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                     keyEquivalent: "")
                 it.target = self; it.tag = i
                 it.state = pet.id == currentID ? .on : .off
+                // alt-click removes an installed pet
+                let alt = NSMenuItem(title: "Remove \(pet.name)",
+                                     action: #selector(removeSpritePet(_:)), keyEquivalent: "")
+                alt.target = self; alt.tag = i
+                alt.isAlternate = true
+                alt.keyEquivalentModifierMask = .option
                 skinMenu.addItem(it)
+                skinMenu.addItem(alt)
             }
         }
         for err in skinErrors {
@@ -2361,7 +2467,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             skinMenu.addItem(it)
         }
         skinMenu.addItem(.separator())
-        for (title, sel) in [("Import Skin…", #selector(importSkin)),
+        for (title, sel) in [("Install Pet from codex-pets.net…", #selector(installSpritePet)),
+                             ("Browse codex-pets.net", #selector(browseSpritePets)),
+                             ("Import Skin…", #selector(importSkin)),
                              ("Export Current Skin…", #selector(exportSkin))] {
             let it = NSMenuItem(title: title, action: sel, keyEquivalent: "")
             it.target = self
@@ -2427,6 +2535,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func openSkinsFolder() {
         SkinStore.seedIfEmpty()
         NSWorkspace.shared.open(SkinStore.userDir)
+    }
+
+    @objc func browseSpritePets() {
+        if let url = URL(string: "https://codex-pets.net") { NSWorkspace.shared.open(url) }
+    }
+
+    /// Ask for a link or an id, then fetch and install in the background so
+    /// the pet keeps animating while it downloads.
+    @objc func installSpritePet() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Install a pet from codex-pets.net"
+        alert.informativeText = "Paste a link such as\n"
+                              + "https://codex-pets.net/#/pets/gugakurumiusa\n\n"
+                              + "or just the id:  gugakurumiusa"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = "link or id"
+        if let clip = NSPasteboard.general.string(forType: .string),
+           SpriteInstaller.petID(from: clip) != nil, clip.contains("codex-pets.net") {
+            field.stringValue = clip.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Install")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let source = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty else { return }
+        guard SpriteInstaller.looksValid(source) else {
+            report(error: "\"\(source)\" is not a pet id or a codex-pets.net link.")
+            return
+        }
+
+        flash("installing…")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = Result { try SpriteInstaller.install(source) }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch result {
+                case .success(let pet):
+                    self.reloadSkins()
+                    _ = self.applyArt(id: pet.id)
+                    self.populateSkinMenu()
+                    self.refreshMenu()
+                case .failure(let error):
+                    self.flash("install failed")
+                    self.report(error: error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func report(error message: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Could not install that pet"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 
     @objc func importSkin() {
@@ -2511,6 +2679,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Prefs.store.set(sk.id, forKey: "petSkin")
         flash(sk.name.lowercased())
         view.needsDisplay = true
+    }
+
+    @objc func removeSpritePet(_ item: NSMenuItem) {
+        guard item.tag < sprites.count else { return }
+        let pet = sprites[item.tag]
+        try? FileManager.default.removeItem(at: pet.folder)
+        reloadSkins()
+        if view.sprite?.id == pet.id, let first = skins.first { apply(first) }
+        populateSkinMenu()
+        flash("removed \(pet.name.lowercased())")
     }
 
     @objc func setSpritePet(_ item: NSMenuItem) {
