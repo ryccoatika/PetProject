@@ -1120,6 +1120,7 @@ struct HookHost {
                              HookEvent("PreToolUse", matcher: "*"),
                              HookEvent("PostToolUse", matcher: "*"),
                              HookEvent("PostToolUseFailure", matcher: "*"),
+                             HookEvent("StopFailure"),
                              HookEvent("Notification"), HookEvent("Stop"),
                              HookEvent("SessionEnd")],
                     timeout: 5, supportsAsync: true))
@@ -1206,9 +1207,14 @@ enum OpencodePlugin {
         export const DesktopPet = async () => ({
           "session.created":     async () => record("SessionStart"),
           "session.idle":        async () => record("Stop"),
+          "session.error":       async () => record("StopFailure"),
           "permission.asked":    async () => record("Notification"),
           "tool.execute.before": async (input) => record("PreToolUse", toolName(input)),
-          "tool.execute.after":  async (input) => record("PostToolUse", toolName(input)),
+          "tool.execute.after":  async (input, output) => {
+            // a failed tool shows the Failed pose instead of Review
+            const failed = output?.error ?? output?.result?.error ?? output?.isError
+            record(failed ? "PostToolUseFailure" : "PostToolUse", toolName(input))
+          },
         })
         """
     }
@@ -1649,18 +1655,38 @@ enum CLI {
     static func event(_ name: String?) -> Never {
         guard let name else { exit(0) }
         var tool = ""
+        var recorded = name
         if isatty(FileHandle.standardInput.fileDescriptor) == 0 {   // only when piped
             let data = FileHandle.standardInput.readDataToEndOfFile()
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let value = json["tool_name"] as? String {
-                tool = value
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                tool = json["tool_name"] as? String ?? ""
+                // Only Claude Code has a dedicated failure event. Everywhere
+                // else the failure is in the result payload, so read it and
+                // report the same thing.
+                if name == "PostToolUse", toolFailed(json) { recorded = "PostToolUseFailure" }
             }
         }
         let dir = SkinStore.configDir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let line = "\(name)|\(tool)|\(Int(Date().timeIntervalSince1970))\n"
+        let line = "\(recorded)|\(tool)|\(Int(Date().timeIntervalSince1970))\n"
         try? line.write(to: dir.appendingPathComponent("state"), atomically: true, encoding: .utf8)
         exit(0)
+    }
+
+    /// Did the tool this event describes fail? Agents word it differently:
+    /// Claude Code reports success, Gemini CLI puts an error inside
+    /// tool_response, others may set one at the top level.
+    static func toolFailed(_ json: [String: Any]) -> Bool {
+        if let response = json["tool_response"] as? [String: Any] {
+            if let error = response["error"], !(error is NSNull) { return true }
+            if let ok = response["success"] as? Bool, !ok { return true }
+            if let status = response["status"] as? String,
+               status.lowercased().contains("error") || status.lowercased().contains("fail") {
+                return true
+            }
+        }
+        if let error = json["error"], !(error is NSNull) { return true }
+        return false
     }
 
     static var running: [NSRunningApplication] {

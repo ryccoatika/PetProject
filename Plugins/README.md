@@ -61,15 +61,25 @@ nothing per event. opencode 1.18 loads both `plugin/` and `plugins/`; the
 installer writes one and removes a copy from the other so events cannot fire
 twice.
 
-| Event | What the pet does |
-|-------|-------------------|
-| `SessionStart` | wakes up |
-| `UserPromptSubmit` | thinks — thought bubble |
-| `PreToolUse` | types at a laptop, tool name in the pill |
-| `PostToolUse` | back to thinking |
-| `Notification` / `PermissionRequest` | stands up, `!` bubble, "needs you" |
-| `Stop` | celebrates for a moment, then settles |
-| `SessionEnd` | back to idle |
+| Event | What the pet does | Sprite track |
+|-------|-------------------|--------------|
+| `SessionStart` | wakes up | Idle |
+| `UserPromptSubmit` | thinks — thought bubble | Review |
+| `PreToolUse` | types at a laptop, tool name in the pill | Running |
+| `PostToolUse` | back to thinking | Review |
+| a tool failed | stands up, `!` bubble, "failed" | Failed |
+| `Notification` / `PermissionRequest` | stands up, `!` bubble, "needs you" | Waiting |
+| `Stop` | celebrates for a moment, then settles | Jumping |
+| `SessionEnd` | back to idle | Idle |
+
+### Failures
+
+Only Claude Code has dedicated failure events (`PostToolUseFailure` and
+`StopFailure`), and both are registered. Everywhere else the failure is in the
+result payload, so `pet event` reads it: a `tool_response` carrying an `error`
+or `success: false`, or a top-level `error`, is recorded as a failure whatever
+the agent called the event. A null `error` does not count. opencode reports
+turn failures through its own `session.error`.
 
 ## Other config folders
 
