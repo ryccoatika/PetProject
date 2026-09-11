@@ -48,8 +48,8 @@ First release.
 
 ### Known limitations
 
-- The app is signed ad-hoc rather than notarised, so the first launch needs
-  right-click → Open.
+- The app is signed ad-hoc rather than notarised, so the first launch of a
+  downloaded build needs System Settings → Privacy & Security → Open Anyway.
 - macOS only. A mobile version is planned; skin files are meant to be shared
   between platforms.
 
