@@ -1,10 +1,17 @@
 name: CI
 
 on:
-  push:
-    branches: [develop, main]
+  # Pull requests only, so a commit is never checked twice. A push to develop
+  # while a release pull request is open would otherwise fire both triggers for
+  # the same commit, and the loser of the pair blocks the merge: it reports the
+  # same required check name with a cancelled conclusion.
   pull_request:
     branches: [develop, main]
+
+# Pushing more commits to an open pull request supersedes the run in flight.
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   check:
