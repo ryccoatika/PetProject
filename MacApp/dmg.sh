@@ -29,7 +29,14 @@ MOUNT=$(hdiutil attach "$RW" -readwrite -noverify -noautoopen | \
 
 # Lay the window out. Needs permission to control Finder, which a terminal is
 # not always granted, so the image is still valid if this part is refused.
-if osascript >/dev/null 2>&1 <<APPLESCRIPT
+#
+# Skipped on a build machine: there is no one to look at the window, and a
+# headless Finder tends to keep the volume open afterwards, which then makes
+# the detach below fail. Set PET_DMG_LAYOUT=1 to force it on anyway.
+if [ "${PET_DMG_LAYOUT:-auto}" = "0" ] || \
+   { [ "${PET_DMG_LAYOUT:-auto}" = "auto" ] && [ -n "${CI:-}" ]; }; then
+    echo "note: skipping the Finder layout on a build machine"
+elif osascript >/dev/null 2>&1 <<APPLESCRIPT
 tell application "Finder"
     tell disk "$VOLNAME"
         open
@@ -61,8 +68,23 @@ SetFile -a C "$MOUNT" 2>/dev/null || true
 chmod -Rf go-w "$MOUNT" 2>/dev/null || true
 sync
 
-hdiutil detach "$MOUNT" -quiet || hdiutil detach "$MOUNT" -force -quiet
-hdiutil convert "$RW" -quiet -format UDZO -imagekey zlib-level=9 -o "$DMG"
+# Whoever just looked inside the volume (Finder, Spotlight) may still hold it
+# open for a moment, so give the detach a few tries before forcing it. Errors
+# stay on stderr here: a silent failure at this point is very hard to diagnose.
+detached=0
+for attempt in 1 2 3 4 5; do
+    if hdiutil detach "$MOUNT" -quiet; then
+        detached=1
+        break
+    fi
+    echo "note: the volume is still busy, retrying the eject ($attempt)"
+    sleep 2
+done
+if [ "$detached" -eq 0 ]; then
+    hdiutil detach "$MOUNT" -force
+fi
+
+hdiutil convert "$RW" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/null
 rm -f "$RW"
 rm -rf "$STAGE"
 
