@@ -10,6 +10,18 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+### Added
+
+- **About Desktop Pet** in the menu, using the standard macOS About panel. It
+  shows the version, which skin or sprite pack is in use, and which agents are
+  driving the pet.
+
+### Fixed
+
+- `pet version` reported a hardcoded `1.0`. The version is now generated from
+  `VERSION` into the binary, so the CLI, the About panel and the app bundle
+  cannot disagree.
+
 ## [1.0.0] - 2026-09-12
 
 First release.

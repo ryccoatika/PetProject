@@ -79,6 +79,11 @@ extension AppDelegate {
             cliItem = nil
         }
 
+        let about = NSMenuItem(title: "About Desktop Pet", action: #selector(showAbout),
+                               keyEquivalent: "")
+        about.target = self
+        mainMenu.addItem(about)
+
         let quit = NSMenuItem(title: "Quit Pet", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         mainMenu.addItem(quit)

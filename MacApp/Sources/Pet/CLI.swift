@@ -133,7 +133,7 @@ enum CLI {
         let cmd = args.removeFirst()
         switch cmd {
         case "help", "--help", "-h": help()
-        case "version", "--version": print("pet 1.0")
+        case "version", "--version": print("pet \(Build.version)")
         case "status":               status()
         case "start":                start()
         case "stop":                 stop()
