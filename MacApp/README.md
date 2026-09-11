@@ -138,6 +138,64 @@ sleeps.
 - Clicks only register on the creature itself; everywhere else in its window
   they pass through to the app underneath.
 
+## Sprite pets
+
+Besides the drawn skins, the pet can be a spritesheet character from
+[codex-pets.net](https://codex-pets.net):
+
+    pet pets install perlica-endfield     download from the marketplace
+    pet pets install ~/Downloads/foo.codex-pet   a local folder or .zip
+    pet pets                              list what is installed
+    pet pets remove <id>
+    pet skin <id>                         switch to it (same command as skins)
+
+Packs land in `~/.config/pet/pets/<id>/` and appear in the menu and in
+`pet skins` alongside the drawn skins.
+
+### The atlas
+
+A pack is a `pet.json` plus a spritesheet. The atlas is 8 columns of 192x208
+cells; v1 sheets have 9 rows and v2 sheets 11. Frame counts per row are
+*measured* from the image rather than assumed — published packs do not always
+match the documented counts (the sample pack's idle row has 7 frames, not the
+documented 6).
+
+| Row | Track | Used for |
+|-----|-------|----------|
+| 0 | Idle | sitting, and sleeping (slowed down) |
+| 1 | Run right | walking right |
+| 2 | Run left | walking left |
+| 3 | Waving | being picked up and dragged |
+| 4 | Jumping | a turn just finished |
+| 5 | Failed | a tool reported a failure |
+| 6 | Waiting | waiting for you (permission / notification) |
+| 7 | Running | a tool is running |
+| 8 | Review | thinking between steps |
+| 9 | Look around - right side | idle glancing, facing right |
+| 10 | Look around - left side | idle glancing, facing left |
+
+Rows 9 and 10 are v2 only; on a v1 sheet they fall back to Idle.
+
+    ./build/pet render --tracks tracks.png
+
+renders every track of every installed pack for checking.
+
+### Cost
+
+Three things keep a spritesheet affordable at 30fps: each cell is cropped from
+the sheet once and cached, a sprite is redrawn only when its frame actually
+changes, and the window is only moved when the pet has moved.
+
+| | CPU |
+|---|---|
+| drawing the whole sheet every frame (first attempt) | 28% |
+| cell caching only | 16% |
+| plus redraw-on-change and skipping idle window moves | **6.5%** |
+
+For comparison the drawn art sits at about 8.6%: it animates continuously, so
+it genuinely redraws every frame, while an idle sprite advances a frame only a
+few times a second.
+
 ## Skins
 
 Skins are data, not code. Each one is a `.petskin` file (JSON):

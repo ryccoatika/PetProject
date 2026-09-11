@@ -68,6 +68,11 @@ USING THE PET
 Skins are plain JSON files in ~/.config/pet/skins — copy one and edit the
 colours to make your own, or use `pet skins dir` to find them.
 
+You can also use spritesheet characters from https://codex-pets.net :
+
+    pet pets install <id>       download and install one
+    pet skin <id>               switch to it
+
 NOTE ON THE FIRST LAUNCH
 ------------------------
 This app is not signed with an Apple Developer ID, so macOS would normally

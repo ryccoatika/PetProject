@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 // MARK: - State
 
-enum Pose { case sitting, grooming, sleeping, running, thinking, working, alert, celebrate }
+enum Pose { case sitting, grooming, sleeping, running, thinking, working, alert, celebrate, failed }
 
 // MARK: - Preferences
 
@@ -286,6 +286,191 @@ enum SkinStore {
     }
 }
 
+// MARK: - Sprite pets (codex-pets.net spritesheets)
+
+/// A spritesheet pet: a folder holding pet.json and a spritesheet image.
+///
+/// The atlas convention is 8 columns of 192x208 cells; v1 sheets have 9 rows
+/// and v2 sheets 11, the last two being free for the client. Frame counts per
+/// row are measured from the image rather than assumed, because published
+/// packs do not always match the documented counts.
+final class SpritePet {
+    /// Row order of the atlas. Rows 0-8 exist in both v1 and v2 sheets; the
+    /// two look-around rows are v2 only.
+    enum Track: Int, CaseIterable {
+        case idle = 0, runningRight, runningLeft, waving, jumping
+        case failed, waiting, running, review
+        case lookAroundRight, lookAroundLeft
+
+        var label: String {
+            switch self {
+            case .idle:             return "Idle"
+            case .runningRight:     return "Run right"
+            case .runningLeft:      return "Run left"
+            case .waving:           return "Waving"
+            case .jumping:          return "Jumping"
+            case .failed:           return "Failed"
+            case .waiting:          return "Waiting"
+            case .running:          return "Running"
+            case .review:           return "Review"
+            case .lookAroundRight:  return "Look around - right side"
+            case .lookAroundLeft:   return "Look around - left side"
+            }
+        }
+    }
+
+    /// v1 sheets stop at `review`; anything past the end falls back to idle.
+    func resolve(_ track: Track) -> Track {
+        track.rawValue < rows ? track : .idle
+    }
+
+    let id: String
+    let name: String
+    let folder: URL
+    let image: NSImage
+    private let sheet: CGImage?
+    private var cells: [Int: CGImage] = [:]
+    let cell: NSSize
+    let columns: Int
+    let rows: Int
+    /// Frames actually drawn in each row.
+    let frameCounts: [Int]
+
+    init?(folder: URL) {
+        guard let data = try? Data(contentsOf: folder.appendingPathComponent("pet.json")),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+
+        let sheetName = json["spritesheetPath"] as? String ?? "spritesheet.webp"
+        let sheet = folder.appendingPathComponent(sheetName)
+        guard let image = NSImage(contentsOf: sheet),
+              let rep = NSBitmapImageRep(data: image.tiffRepresentation ?? Data())
+        else { return nil }
+
+        self.sheet = rep.cgImage
+        self.id = json["id"] as? String ?? folder.lastPathComponent
+        self.name = json["displayName"] as? String ?? self.id
+        self.folder = folder
+        self.image = image
+
+        // 8 columns is the atlas constant; the cell is square-ish 192x208, so
+        // the row count follows from the sheet height.
+        let pixelsWide = CGFloat(rep.pixelsWide), pixelsHigh = CGFloat(rep.pixelsHigh)
+        columns = 8
+        let cellW = pixelsWide / CGFloat(columns)
+        let cellH = cellW * 208.0 / 192.0
+        rows = max(1, Int((pixelsHigh / cellH).rounded()))
+        cell = NSSize(width: cellW, height: pixelsHigh / CGFloat(rows))
+
+        frameCounts = SpritePet.measureFrames(rep, columns: columns, rows: rows,
+                                              cell: NSSize(width: cellW,
+                                                           height: pixelsHigh / CGFloat(rows)))
+        image.size = NSSize(width: pixelsWide, height: pixelsHigh)
+    }
+
+    /// A cell counts as used when it has a meaningful number of opaque pixels.
+    private static func measureFrames(_ rep: NSBitmapImageRep, columns: Int, rows: Int,
+                                      cell: NSSize) -> [Int] {
+        guard let data = rep.bitmapData, rep.samplesPerPixel >= 4 else {
+            return Array(repeating: columns, count: rows)
+        }
+        let spp = rep.samplesPerPixel, rowBytes = rep.bytesPerRow
+        let cw = Int(cell.width), chh = Int(cell.height)
+        var counts: [Int] = []
+        for r in 0..<rows {
+            var used = 0
+            for c in 0..<columns {
+                var filled = 0
+                let y0 = r * chh, x0 = c * cw
+                var y = y0
+                while y < min(y0 + chh, rep.pixelsHigh) {
+                    var x = x0
+                    while x < min(x0 + cw, rep.pixelsWide) {
+                        if data[y * rowBytes + x * spp + 3] > 8 { filled += 1 }
+                        x += 2                      // sampling every other pixel is plenty
+                    }
+                    y += 2
+                }
+                if filled > 50 { used += 1 }
+            }
+            counts.append(max(1, used))
+        }
+        return counts
+    }
+
+    func frames(in track: Track) -> Int {
+        let row = resolve(track).rawValue
+        return row < frameCounts.count ? frameCounts[row] : 1
+    }
+
+    /// Draw one frame, scaled to fit `rect` and anchored to its bottom.
+    func draw(track: Track, frame: Int, in rect: NSRect, flipped: Bool = false) {
+        let row = min(resolve(track).rawValue, rows - 1)
+        let column = min(frame, (row < frameCounts.count ? frameCounts[row] : 1) - 1)
+        // the sheet's origin is top-left; NSImage draws from bottom-left
+        let source = NSRect(x: CGFloat(column) * cell.width,
+                            y: image.size.height - CGFloat(row + 1) * cell.height,
+                            width: cell.width, height: cell.height)
+
+        let scale = min(rect.width / cell.width, rect.height / cell.height)
+        let size = NSSize(width: cell.width * scale, height: cell.height * scale)
+        let target = NSRect(x: rect.midX - size.width / 2, y: rect.minY,
+                            width: size.width, height: size.height)
+
+        NSGraphicsContext.saveGraphicsState()
+        if flipped {
+            let t = NSAffineTransform()
+            t.translateX(by: target.midX * 2, yBy: 0)
+            t.scaleX(by: -1, yBy: 1)
+            t.concat()
+        }
+        if let cropped = cellImage(row: row, column: column),
+           let context = NSGraphicsContext.current?.cgContext {
+            context.interpolationQuality = .high
+            context.draw(cropped, in: target)
+        } else {
+            image.draw(in: target, from: source, operation: .sourceOver, fraction: 1,
+                       respectFlipped: false, hints: [.interpolation: NSImageInterpolation.high])
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    /// Cells are cropped once and kept; redrawing the whole sheet every frame
+    /// is far too expensive at 30fps.
+    private func cellImage(row: Int, column: Int) -> CGImage? {
+        let key = row * 100 + column
+        if let cached = cells[key] { return cached }
+        guard let sheet else { return nil }
+        let rect = CGRect(x: CGFloat(column) * cell.width, y: CGFloat(row) * cell.height,
+                          width: cell.width, height: cell.height)
+        guard let cropped = sheet.cropping(to: rect) else { return nil }
+        cells[key] = cropped
+        return cropped
+    }
+}
+
+/// Where sprite pets live and how they are found.
+enum SpriteStore {
+    static var directory: URL { SkinStore.configDir.appendingPathComponent("pets", isDirectory: true) }
+
+    static func folders() -> [URL] {
+        let found = (try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil)) ?? []
+        return found.filter {
+            FileManager.default.fileExists(atPath: $0.appendingPathComponent("pet.json").path)
+        }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    static func load() -> [SpritePet] {
+        folders().compactMap { SpritePet(folder: $0) }
+    }
+
+    static func load(id: String) -> SpritePet? {
+        folders().first { $0.lastPathComponent == id }.flatMap { SpritePet(folder: $0) }
+            ?? load().first { $0.id == id }
+    }
+}
+
 // MARK: - The pet (all art drawn in code, no assets)
 
 final class PetView: NSView {
@@ -309,7 +494,8 @@ final class PetView: NSView {
     /// Region the pet actually occupies. Clicks outside it pass through to
     /// whatever is underneath, so the window only "exists" where the cat is.
     var grabRect: NSRect {
-        NSRect(x: bounds.midX - 45, y: 0, width: 90, height: 118)
+        sprite == nil ? NSRect(x: bounds.midX - 45, y: 0, width: 90, height: 118)
+                      : NSRect(x: bounds.midX - 62, y: 0, width: 124, height: bounds.height - 24)
     }
 
     // The app is an accessory: without this the first click would only
@@ -340,6 +526,9 @@ final class PetView: NSView {
     override var isFlipped: Bool { false }
 
     var skin: Skin = .fallback
+    /// When set, the pet is drawn from a spritesheet instead of vector art.
+    var sprite: SpritePet?
+    var spriteFrame = 0
     var fur:   NSColor { skin.body }
     var furDk: NSColor { skin.bodyDark }
     var cream: NSColor { skin.belly }
@@ -385,6 +574,12 @@ final class PetView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         NSGraphicsContext.current?.imageInterpolation = .high
+
+        if let sprite {
+            drawSprite(sprite)
+            return
+        }
+
         let cx = bounds.midX
 
         NSColor(white: 0, alpha: 0.16).setFill()
@@ -409,7 +604,7 @@ final class PetView: NSView {
         case .grooming:  drawSitting(grooming: true)
         case .sleeping:  drawSleeping()
         case .thinking:  drawSitting(grooming: false, tailFlick: true)
-        case .alert:     drawAlertPose()
+        case .alert, .failed: drawAlertPose()
         case .celebrate: drawCelebrate()
         case .working:   drawWorking()
         }
@@ -417,13 +612,54 @@ final class PetView: NSView {
 
         // Bubbles and labels are never mirrored, so they live outside the flip.
         switch pose {
-        case .sleeping:  drawZs()
-        case .thinking:  drawThoughtBubble()
-        case .alert:     drawBangBubble()
-        case .celebrate: drawSparkles()
+        case .sleeping:      drawZs()
+        case .thinking:      drawThoughtBubble()
+        case .alert, .failed: drawBangBubble()
+        case .celebrate:     drawSparkles()
         default: break
         }
         if let l = label { drawPill(l) }
+    }
+
+    /// Spritesheet pets use the atlas rows in place of the drawn poses.
+    private func drawSprite(_ sprite: SpritePet) {
+        let box = NSRect(x: 0, y: 16, width: bounds.width, height: bounds.height - 26)
+        sprite.draw(track: spriteTrack, frame: spriteFrame, in: box)
+
+        // the pill and bubbles still apply
+        switch pose {
+        case .sleeping:      drawZs()
+        case .thinking:      drawThoughtBubble()
+        case .alert, .failed: drawBangBubble()
+        case .celebrate:     drawSparkles()
+        default: break
+        }
+        if let label { drawPill(label) }
+    }
+
+    /// Which atlas row the current pose maps to.
+    ///
+    ///   Idle          sitting, and sleeping (slowed down)
+    ///   Run right/left  walking, by direction
+    ///   Waving        being picked up
+    ///   Jumping       a turn just finished
+    ///   Failed        the agent reported a failure
+    ///   Waiting       waiting for you (permission / notification)
+    ///   Running       a tool is running
+    ///   Review        thinking between steps
+    ///   Look around   idle glancing, toward whichever side the cursor is on
+    var spriteTrack: SpritePet.Track {
+        if held { return .waving }
+        switch pose {
+        case .running:   return facingRight ? .runningRight : .runningLeft
+        case .working:   return .running
+        case .thinking:  return .review
+        case .alert:     return .waiting
+        case .celebrate: return .jumping
+        case .grooming:  return facingRight ? .lookAroundRight : .lookAroundLeft
+        case .failed:    return .failed
+        default:         return .idle
+        }
     }
 
     // MARK: poses
@@ -859,6 +1095,7 @@ struct HookHost {
                     events: [HookEvent("SessionStart"), HookEvent("UserPromptSubmit"),
                              HookEvent("PreToolUse", matcher: "*"),
                              HookEvent("PostToolUse", matcher: "*"),
+                             HookEvent("PostToolUseFailure", matcher: "*"),
                              HookEvent("Notification"), HookEvent("Stop"),
                              HookEvent("SessionEnd")],
                     timeout: 5, supportsAsync: true))
@@ -1261,10 +1498,15 @@ enum CLI {
           show | hide            show or hide the pet
           tray show | tray hide  show or hide the menu bar icon
 
-        SKINS
-          skins                  list installed skins
-          skin <id>              switch skin
+        SKINS AND SPRITE PETS
+          skins                  list everything installed
+          skin <id>              switch to a skin or sprite pet
           skins dir              print the skins folder
+          pets                   list sprite pets (codex-pets.net packs)
+          pets install <id>      download one from codex-pets.net
+          pets install <path>    install a local folder or .zip
+          pets remove <id>
+          pets dir               print the sprite pet folder
 
         CONFIG
           config                 print the config folder and where it came from
@@ -1302,6 +1544,7 @@ enum CLI {
         case "hide":                 setHidden(true)
         case "tray":                 tray(args.first)
         case "skins":                args.first == "dir" ? print(SkinStore.userDir.path) : listSkins()
+        case "pets":                 pets(args)
         case "skin":                 setSkin(args.first)
         case "config":               config(args)
         case "event":                event(args.first)
@@ -1393,14 +1636,142 @@ enum CLI {
         for skin in result.skins {
             print("\(skin.id == current ? " * " : "   ")\(skin.id.padding(toLength: max(10, skin.id.count + 1), withPad: " ", startingAt: 0))\(skin.name)")
         }
+        for pet in SpriteStore.load() {
+            print("\(pet.id == current ? " * " : "   ")"
+                + "\(pet.id.padding(toLength: max(10, pet.id.count + 1), withPad: " ", startingAt: 0))"
+                + "\(pet.name)   (sprite)")
+        }
         for error in result.errors { print("  !  \(error)") }
+    }
+
+    // MARK: sprite pets
+
+    static func pets(_ args: [String]) {
+        switch args.first {
+        case nil, "list":
+            let installed = SpriteStore.load()
+            if installed.isEmpty {
+                print("no sprite pets installed — try: pet pets install <id>")
+                print("browse them at https://codex-pets.net")
+                return
+            }
+            Prefs.refresh()
+            let current = Prefs.store.string(forKey: "petSkin") ?? ""
+            for pet in installed {
+                let mark = pet.id == current ? " * " : "   "
+                let rows = pet.frameCounts.prefix(9).map(String.init).joined(separator: ",")
+                print("\(mark)\(pet.id.padding(toLength: max(20, pet.id.count + 1), withPad: " ", startingAt: 0))"
+                    + "\(pet.name)   [\(pet.rows) rows, frames \(rows)]")
+            }
+            print("")
+            print("folder: \(tilde(SpriteStore.directory))")
+        case "dir":
+            print(SpriteStore.directory.path)
+        case "install":
+            guard let what = args.dropFirst().first else {
+                fail("usage: pet pets install <id | url | folder | zip>")
+            }
+            installPet(what)
+        case "remove", "uninstall":
+            guard let id = args.dropFirst().first else { fail("usage: pet pets remove <id>") }
+            let folder = SpriteStore.directory.appendingPathComponent(id)
+            guard FileManager.default.fileExists(atPath: folder.path) else {
+                fail("no sprite pet \"\(id)\" installed")
+            }
+            try? FileManager.default.removeItem(at: folder)
+            print("removed \(tilde(folder))")
+            if Prefs.store.string(forKey: "petSkin") == id {
+                Prefs.store.set("tabby", forKey: "petSkin")
+                Prefs.store.synchronize()
+            }
+            Prefs.notifyRunningApp()
+        default:
+            fail("usage: pet pets [list | install <id|url|folder|zip> | remove <id> | dir]")
+        }
+    }
+
+    /// Accepts a marketplace id, a direct URL, or a local folder or .zip.
+    static func installPet(_ source: String) {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: SpriteStore.directory, withIntermediateDirectories: true)
+
+        let local = SkinStore.expand(source)
+        if fm.fileExists(atPath: local.path) {
+            var isDir: ObjCBool = false
+            _ = fm.fileExists(atPath: local.path, isDirectory: &isDir)
+            if isDir.boolValue {
+                installPetFolder(local, id: local.lastPathComponent
+                    .replacingOccurrences(of: ".codex-pet", with: ""))
+            } else {
+                unpack(zip: local, id: local.deletingPathExtension().lastPathComponent
+                    .replacingOccurrences(of: ".codex-pet", with: ""))
+            }
+            return
+        }
+
+        let id = source.hasPrefix("http") ? URL(string: source)?.lastPathComponent ?? "pet" : source
+        let url = source.hasPrefix("http") ? source
+            : "https://codex-pets.net/api/pets/\(source)/download"
+        print("downloading \(url)…")
+        guard let remote = URL(string: url), let data = try? Data(contentsOf: remote), !data.isEmpty else {
+            fail("could not download \(url)")
+        }
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("\(id).codex-pet.zip")
+        try? data.write(to: tmp)
+        unpack(zip: tmp, id: id)
+        try? fm.removeItem(at: tmp)
+    }
+
+    private static func unpack(zip: URL, id: String) {
+        let dest = SpriteStore.directory.appendingPathComponent(id)
+        try? FileManager.default.removeItem(at: dest)
+        try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        let unzip = Process()
+        unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        unzip.arguments = ["-o", "-q", zip.path, "-d", dest.path]
+        try? unzip.run()
+        unzip.waitUntilExit()
+        finish(dest, id: id)
+    }
+
+    private static func installPetFolder(_ folder: URL, id: String) {
+        let dest = SpriteStore.directory.appendingPathComponent(id)
+        try? FileManager.default.removeItem(at: dest)
+        do { try FileManager.default.copyItem(at: folder, to: dest) }
+        catch { fail("could not copy \(folder.path): \(error.localizedDescription)") }
+        finish(dest, id: id)
+    }
+
+    /// Some packs unzip into a nested folder; flatten that, then validate.
+    private static func finish(_ dest: URL, id: String) {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: dest.appendingPathComponent("pet.json").path) {
+            let inner = ((try? fm.contentsOfDirectory(at: dest, includingPropertiesForKeys: nil)) ?? [])
+                .first { fm.fileExists(atPath: $0.appendingPathComponent("pet.json").path) }
+            if let inner {
+                for file in (try? fm.contentsOfDirectory(at: inner, includingPropertiesForKeys: nil)) ?? [] {
+                    try? fm.moveItem(at: file, to: dest.appendingPathComponent(file.lastPathComponent))
+                }
+                try? fm.removeItem(at: inner)
+            }
+        }
+        guard let pet = SpritePet(folder: dest) else {
+            try? fm.removeItem(at: dest)
+            fail("that does not look like a pet pack (needs pet.json and a spritesheet)")
+        }
+        print("installed \(pet.name) (\(pet.id)) — \(pet.rows) rows, "
+            + "\(Int(pet.cell.width))x\(Int(pet.cell.height)) frames")
+        print("use it with: pet skin \(pet.id)")
     }
 
     static func setSkin(_ id: String?) {
         guard let id else { fail("usage: pet skin <id>   (see: pet skins)") }
         let skins = SkinStore.load().skins
-        guard skins.contains(where: { $0.id == id }) else {
-            fail("no skin \"\(id)\" — available: " + skins.map(\.id).joined(separator: ", "))
+        let spriteIDs = SpriteStore.load().map(\.id)
+        guard skins.contains(where: { $0.id == id }) || spriteIDs.contains(id) else {
+            fail("no skin \"\(id)\" — available: "
+                 + (skins.map(\.id) + spriteIDs).joined(separator: ", "))
         }
         Prefs.store.set(id, forKey: "petSkin")
         Prefs.store.synchronize()
@@ -1628,7 +1999,8 @@ if petArgs.first == "render" || CommandLine.arguments.contains("--render") {
     let specs: [(Pose, String?)] = [(.thinking, "thinking"), (.working, "Edit"), (.alert, "needs you"),
                                     (.celebrate, "done"), (.sitting, "held"), (.sleeping, nil)]
     let loaded = SkinStore.load().skins
-    let w = 170, h = 165, rows = loaded.count
+    let pets = SpriteStore.load()
+    let w = 170, h = 165, rows = loaded.count + pets.count
     let sheet = NSImage(size: NSSize(width: w * specs.count, height: h * rows))
     sheet.lockFocus()
     NSColor.white.setFill()
@@ -1643,7 +2015,51 @@ if petArgs.first == "render" || CommandLine.arguments.contains("--render") {
             if spec.1 == "held" { v.held = true; v.label = nil }
             let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds)!
             v.cacheDisplay(in: v.bounds, to: rep)
-            rep.draw(in: NSRect(x: CGFloat(i * w), y: CGFloat((rows - 1 - r) * h),
+            rep.draw(in: NSRect(x: CGFloat(i * w),
+                                y: CGFloat((rows - 1 - r) * h),
+                                width: CGFloat(w), height: CGFloat(h)))
+        }
+    }
+    // every atlas track, so a pack can be checked at a glance
+    if CommandLine.arguments.contains("--tracks") {
+        let all = SpritePet.Track.allCases
+        let tw = 150, th = 190
+        let strip = NSImage(size: NSSize(width: tw * all.count, height: th * pets.count))
+        strip.lockFocus()
+        NSColor(white: 0.15, alpha: 1).setFill()
+        NSRect(x: 0, y: 0, width: tw * all.count, height: th * pets.count).fill()
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+            .foregroundColor: NSColor.white]
+        for (r, pet) in pets.enumerated() {
+            for (i, track) in all.enumerated() {
+                let box = NSRect(x: CGFloat(i * tw), y: CGFloat((pets.count - 1 - r) * th) + 18,
+                                 width: CGFloat(tw), height: CGFloat(th - 34))
+                pet.draw(track: track, frame: 1, in: box)
+                NSString(string: "\(track.rawValue) \(track.label)")
+                    .draw(at: NSPoint(x: CGFloat(i * tw) + 6,
+                                      y: CGFloat((pets.count - 1 - r) * th) + 4),
+                          withAttributes: attrs)
+            }
+        }
+        strip.unlockFocus()
+        let png = NSBitmapImageRep(data: strip.tiffRepresentation!)!
+            .representation(using: .png, properties: [:])!
+        try! png.write(to: URL(fileURLWithPath: out))
+        exit(0)
+    }
+
+    // sprite pets get a row each, using the same pose sequence
+    for (r, pet) in pets.enumerated() {
+        for (i, spec) in specs.enumerated() {
+            let v = PetView(frame: NSRect(x: 0, y: 0, width: w, height: h))
+            v.sprite = pet
+            v.pose = spec.0; v.label = spec.1; v.spriteFrame = 1
+            if spec.1 == "held" { v.held = true; v.label = nil; v.pose = .running }
+            let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds)!
+            v.cacheDisplay(in: v.bounds, to: rep)
+            rep.draw(in: NSRect(x: CGFloat(i * w),
+                                y: CGFloat((pets.count - 1 - r) * h),
                                 width: CGFloat(w), height: CGFloat(h)))
         }
     }
@@ -1656,7 +2072,7 @@ if petArgs.first == "render" || CommandLine.arguments.contains("--render") {
 // MARK: - App
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    let size = NSSize(width: 170, height: 165)
+    let size = NSSize(width: 200, height: 210)
     var window: NSWindow!
     var view: PetView!
     var statusItem: NSStatusItem?
@@ -1674,8 +2090,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var chaseWhenIdle = false
     var dragging = false
     var isActive = false               // Claude is thinking / running a tool
+    var lastTrack: SpritePet.Track = .idle
+    var lastSpriteSignature = ""
     var hidden = false                 // pet hidden from screen via the menu
     var skins: [Skin] = []
+    var sprites: [SpritePet] = []
     var skinErrors: [String] = []
     var skinMenu = NSMenu()
     let mainMenu = NSMenu()
@@ -1708,7 +2127,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         chaseWhenIdle = d.bool(forKey: "petChase")
         reloadSkins()
         let wanted = d.string(forKey: "petSkin") ?? "tabby"
-        view.skin = skins.first { $0.id == wanted } ?? skins[0]
+        if let pet = sprites.first(where: { $0.id == wanted }) {
+            view.sprite = pet
+        } else {
+            view.skin = skins.first { $0.id == wanted } ?? skins[0]
+        }
         if d.object(forKey: "petPosX") != nil {
             pos = CGPoint(x: d.double(forKey: "petPosX"), y: d.double(forKey: "petPosY"))
         } else {
@@ -1814,6 +2237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .working:   return "Working — \(lastTool.isEmpty ? "tool" : lastTool)"
         case .thinking:  return "Claude is thinking"
         case .alert:     return "Waiting for you"
+        case .failed:    return "A tool failed"
         case .celebrate: return "Just finished"
         case .sleeping:  return "Asleep"
         default:         return "Idle"
@@ -1824,6 +2248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let result = SkinStore.load()
         skins = result.skins
         skinErrors = result.errors
+        sprites = SpriteStore.load()
         // keep showing the current skin if its file is still there, else fall back
         view.skin = skins.first { $0.id == view.skin.id } ?? skins[0]
     }
@@ -1831,11 +2256,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Rebuilt on every open so skins added to the folder appear without a restart.
     func populateSkinMenu() {
         skinMenu.removeAllItems()
+        let currentID = view.sprite?.id ?? view.skin.id
         for (i, sk) in skins.enumerated() {
             let it = NSMenuItem(title: sk.name, action: #selector(setSkin(_:)), keyEquivalent: "")
             it.target = self; it.tag = i
-            it.state = sk.id == view.skin.id ? .on : .off
+            it.state = sk.id == currentID ? .on : .off
             skinMenu.addItem(it)
+        }
+        if !sprites.isEmpty {
+            skinMenu.addItem(.separator())
+            for (i, pet) in sprites.enumerated() {
+                let it = NSMenuItem(title: pet.name, action: #selector(setSpritePet(_:)),
+                                    keyEquivalent: "")
+                it.target = self; it.tag = i
+                it.state = pet.id == currentID ? .on : .off
+                skinMenu.addItem(it)
+            }
         }
         for err in skinErrors {
             let it = NSMenuItem(title: "⚠ \(err)", action: nil, keyEquivalent: "")
@@ -1967,12 +2403,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         flashUntil = Date().addingTimeInterval(1.6)
     }
 
+    /// Select by id across both vector skins and sprite pets.
+    func applyArt(id: String) -> Bool {
+        if let pet = sprites.first(where: { $0.id == id }) {
+            view.sprite = pet
+            view.spriteFrame = 0
+            Prefs.store.set(id, forKey: "petSkin")
+            flash(pet.name.lowercased())
+            view.needsDisplay = true
+            writeRuntime()
+            return true
+        }
+        if let skin = skins.first(where: { $0.id == id }) {
+            view.sprite = nil
+            apply(skin)
+            return true
+        }
+        return false
+    }
+
     func apply(_ sk: Skin) {
+        view.sprite = nil
         view.skin = sk
         defer { writeRuntime() }
         Prefs.store.set(sk.id, forKey: "petSkin")
         flash(sk.name.lowercased())
         view.needsDisplay = true
+    }
+
+    @objc func setSpritePet(_ item: NSMenuItem) {
+        guard item.tag < sprites.count else { return }
+        _ = applyArt(id: sprites[item.tag].id)
+        populateSkinMenu()
     }
 
     @objc func setSkin(_ item: NSMenuItem) {
@@ -2037,7 +2499,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func writeRuntime() {
         let dir = SkinStore.configDir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let line = "pid=\(ProcessInfo.processInfo.processIdentifier) skin=\(view.skin.id) "
+        let line = "pid=\(ProcessInfo.processInfo.processIdentifier) "
+                 + "skin=\(view.sprite?.id ?? view.skin.id) "
                  + "hidden=\(hidden ? 1 : 0) chase=\(chaseWhenIdle ? 1 : 0) "
                  + "tray=\(trayHidden ? "hidden" : "shown")\n"
         try? line.write(to: dir.appendingPathComponent("runtime"), atomically: true, encoding: .utf8)
@@ -2059,9 +2522,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if trayHidden { removeTray() } else { showTray() }
         }
         reloadSkins()
-        if let id = d.string(forKey: "petSkin"), let sk = skins.first(where: { $0.id == id }) {
-            view.skin = sk
-        }
+        if let id = d.string(forKey: "petSkin") { _ = applyArt(id: id) }
         populateSkinMenu()
         refreshMenu()
         view.needsDisplay = true
@@ -2097,7 +2558,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                        y: min(max(p.y, f.minY + 4), f.maxY - size.height))
     }
 
-    func place() { window.setFrameOrigin(NSPoint(x: pos.x - size.width / 2, y: pos.y)) }
+    private var placedAt = CGPoint(x: CGFloat.infinity, y: CGFloat.infinity)
+
+    /// Moving a window is a trip to the window server; skip it when the pet
+    /// has not actually moved.
+    func place() {
+        guard abs(pos.x - placedAt.x) > 0.5 || abs(pos.y - placedAt.y) > 0.5 else { return }
+        placedAt = pos
+        window.setFrameOrigin(NSPoint(x: pos.x - size.width / 2, y: pos.y))
+    }
 
     // MARK: state file
 
@@ -2127,6 +2596,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         switch event {
+        case "PostToolUseFailure" where eventAge < 6, "StopFailure" where eventAge < 6:
+            view.pose = .failed; view.label = "failed"
         case "Notification" where !stale, "PermissionRequest" where !stale:
             view.pose = .alert; view.label = "needs you"
         case "PreToolUse" where !stale:
@@ -2140,6 +2611,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Sprite pets animate at a fixed rate regardless of the 30fps redraw.
+    func advanceSprite() {
+        guard let sprite = view.sprite else { return }
+        let track = view.spriteTrack
+        let frames = sprite.frames(in: track)
+        guard frames > 1 else { view.spriteFrame = 0; return }
+        // idle and sleep breathe slowly; movement and reactions run quicker
+        let perFrame = view.pose == .sleeping ? 14 : (isActive || view.pose == .running ? 4 : 8)
+        if tick % perFrame == 0 {
+            view.spriteFrame = (view.spriteFrame + 1) % frames
+        }
+        if track != lastTrack {
+            lastTrack = track
+            view.spriteFrame = 0            // restart a track from its first frame
+        }
+    }
+
     // MARK: frame
 
     func step() {
@@ -2148,7 +2636,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if hidden {                      // still follow Claude so the menu stays useful
             if tick % 3 == 0 { readState() } else { eventAge += 1 / fps }
             updatePose()
-            isActive = [.working, .thinking, .alert, .celebrate].contains(view.pose)
+            isActive = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
             return
         }
 
@@ -2174,8 +2662,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if tick % 3 == 0 { readState() } else { eventAge += 1 / fps }
         updatePose()
 
-        let active = [.working, .thinking, .alert, .celebrate].contains(view.pose)
+        let active = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
         isActive = active
+        advanceSprite()
         if Date() < flashUntil { view.label = flashText }
         view.phase += active ? 0.3 : 0.07
         view.hop = view.pose == .celebrate ? abs(sin(view.phase * 1.9)) * 16 : 0
@@ -2215,7 +2704,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         place()
-        view.needsDisplay = true
+        if view.sprite == nil {
+            view.needsDisplay = true            // vector art animates continuously
+        } else {
+            // sprite frames change every few ticks; redraw only then
+            let signature = "\(view.spriteFrame)|\(view.pose)|\(view.held)|"
+                          + "\(Int(pos.x))|\(Int(pos.y))|\(view.label ?? "")"
+            if signature != lastSpriteSignature {
+                lastSpriteSignature = signature
+                view.needsDisplay = true
+            }
+        }
         if tick % 150 == 0 { savePos() }
     }
 }
