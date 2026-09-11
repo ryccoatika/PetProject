@@ -36,9 +36,9 @@ jobs:
       - name: Take the notes for this version out of the changelog
         if: steps.version.outputs.fresh == 'true'
         run: |
-          awk -v v="${{ steps.version.outputs.version }}" '
-            $0 ~ "^## \\\\[" v "\\\\]" { inside = 1; next }
-            inside && /^## \[/ { exit }
+          awk -v heading="## [${{ steps.version.outputs.version }}]" '
+            index($0, heading) == 1 { inside = 1; next }
+            inside && index($0, "## [") == 1 { exit }
             inside && /^\[[^]]+\]: / { next }   # link definitions live at the bottom
             inside { print }
           ' CHANGELOG.md > RELEASE_NOTES.md
