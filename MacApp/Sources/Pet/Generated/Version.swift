@@ -1,3 +1,4 @@
+// swift-format-ignore-file
 //  Version.swift
 //  Desktop Pet
 //

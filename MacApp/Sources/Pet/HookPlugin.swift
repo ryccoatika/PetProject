@@ -19,11 +19,11 @@ enum HookPlugin {
     /// delete somebody else's hook — a command like `/opt/tools/snippet event
     /// PreToolUse` must not look like ours just because it ends in "pet".
     static func isOurCommand(_ command: String) -> Bool {
-        if command.contains("pet-hook.sh") { return true }              // legacy
+        if command.contains("pet-hook.sh") { return true }  // legacy
 
         let text = command.trimmingCharacters(in: .whitespaces)
         let executable: String
-        if text.hasPrefix("\"") {                                       // quoted path
+        if text.hasPrefix("\"") {  // quoted path
             let body = text.dropFirst()
             guard let end = body.firstIndex(of: "\"") else { return false }
             executable = String(body[body.startIndex..<end])
@@ -34,8 +34,10 @@ enum HookPlugin {
         // The program itself must be the pet, and it must be the event subcommand.
         let name = URL(fileURLWithPath: executable).lastPathComponent
         guard name == "pet" || name == "Pet" else { return false }
-        let arguments = text.dropFirst(text.hasPrefix("\"") ? executable.count + 2
-                                                            : executable.count)
+        let arguments = text.dropFirst(
+            text.hasPrefix("\"")
+                ? executable.count + 2
+                : executable.count)
         return arguments.trimmingCharacters(in: .whitespaces).hasPrefix("event ")
     }
 
@@ -47,12 +49,15 @@ enum HookPlugin {
     enum MergeResult { case changed(Int), unchanged, unreadable }
 
     /// Reconciles our entries in one config file and leaves the rest alone.
-    static func merge(file url: URL, events: [HookEvent], timeout: Int,
-                      supportsAsync: Bool, remove: Bool) -> MergeResult {
+    static func merge(
+        file url: URL, events: [HookEvent], timeout: Int,
+        supportsAsync: Bool, remove: Bool
+    ) -> MergeResult {
         var root: [String: Any] = [:]
         if let data = try? Data(contentsOf: url), !data.isEmpty {
-            guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return .unreadable          // never clobber a file we cannot parse
+            guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else {
+                return .unreadable  // never clobber a file we cannot parse
             }
             root = parsed
         }
@@ -66,7 +71,11 @@ enum HookPlugin {
             if remove {
                 let kept = list.filter { !isOurs($0) }
                 if kept.count != list.count { changed += 1 }
-                if kept.isEmpty { hooks.removeValue(forKey: event.host) } else { hooks[event.host] = kept }
+                if kept.isEmpty {
+                    hooks.removeValue(forKey: event.host)
+                } else {
+                    hooks[event.host] = kept
+                }
                 continue
             }
 
@@ -79,9 +88,11 @@ enum HookPlugin {
                 return correct
             }
             if !list.contains(where: isOurs) {
-                var handler: [String: Any] = ["type": "command", "command": want,
-                                              "timeout": timeout]
-                if supportsAsync { handler["async"] = true }   // Gemini has no async flag
+                var handler: [String: Any] = [
+                    "type": "command", "command": want,
+                    "timeout": timeout,
+                ]
+                if supportsAsync { handler["async"] = true }  // Gemini has no async flag
                 var entry: [String: Any] = ["hooks": [handler]]
                 if let matcher = event.matcher { entry["matcher"] = matcher }
                 list.append(entry)
@@ -90,20 +101,27 @@ enum HookPlugin {
             hooks[event.host] = list
         }
 
-        if remove && hooks.isEmpty { root.removeValue(forKey: "hooks") } else { root["hooks"] = hooks }
+        if remove && hooks.isEmpty {
+            root.removeValue(forKey: "hooks")
+        } else {
+            root["hooks"] = hooks
+        }
         guard changed > 0 else { return .unchanged }
 
         if FileManager.default.fileExists(atPath: url.path) {
             let backup = url.appendingPathExtension("bak-pet")
-            try? FileManager.default.removeItem(at: backup)     // keep the latest backup
+            try? FileManager.default.removeItem(at: backup)  // keep the latest backup
             try? FileManager.default.copyItem(at: url, to: backup)
         } else {
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                     withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
         }
-        guard let out = try? JSONSerialization.data(
-            withJSONObject: root,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) else {
+        guard
+            let out = try? JSONSerialization.data(
+                withJSONObject: root,
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        else {
             return .unreadable
         }
         try? out.write(to: url)
@@ -112,8 +130,9 @@ enum HookPlugin {
 
     static func registeredCount(in file: URL) -> Int {
         guard let data = try? Data(contentsOf: file),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let hooks = root["hooks"] as? [String: Any] else { return 0 }
+            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let hooks = root["hooks"] as? [String: Any]
+        else { return 0 }
         return hooks.values.reduce(0) { total, value in
             total + ((value as? [[String: Any]] ?? []).filter(isOurs).count)
         }
@@ -124,7 +143,9 @@ enum HookPlugin {
         case .json:
             return host.files.contains { registeredCount(in: $0) > 0 }
         case .plugin(let file, let alternates):
-            return ([file] + alternates).contains { FileManager.default.fileExists(atPath: $0.path) }
+            return ([file] + alternates).contains {
+                FileManager.default.fileExists(atPath: $0.path)
+            }
         }
     }
 
@@ -140,17 +161,22 @@ enum HookPlugin {
                     print("  ·  \(label) — nothing to remove")
                     continue
                 }
-                switch merge(file: file, events: events, timeout: timeout,
-                             supportsAsync: supportsAsync, remove: remove) {
-                case .unreadable:     print("  !  \(label) — \(file.lastPathComponent) unreadable, left untouched")
-                case .unchanged:      print("  ·  \(label) already up to date")
-                case .changed(let n): print("  ✓  \(label) — \(n) event(s) \(remove ? "removed" : "updated")")
+                switch merge(
+                    file: file, events: events, timeout: timeout,
+                    supportsAsync: supportsAsync, remove: remove)
+                {
+                case .unreadable:
+                    print("  !  \(label) — \(file.lastPathComponent) unreadable, left untouched")
+                case .unchanged: print("  ·  \(label) already up to date")
+                case .changed(let n):
+                    print("  ✓  \(label) — \(n) event(s) \(remove ? "removed" : "updated")")
                 }
             }
         case .plugin(let file, let alternates):
             if remove {
                 var removed = false
-                for url in [file] + alternates where FileManager.default.fileExists(atPath: url.path) {
+                for url in [file] + alternates
+                where FileManager.default.fileExists(atPath: url.path) {
                     try? FileManager.default.removeItem(at: url)
                     print("  ✓  removed \(CLI.tilde(url))")
                     removed = true
@@ -164,8 +190,9 @@ enum HookPlugin {
                 print("  ✓  removed duplicate \(CLI.tilde(url))")
             }
             do {
-                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(),
-                                                        withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(
+                    at: file.deletingLastPathComponent(),
+                    withIntermediateDirectories: true)
                 try OpencodePlugin.source.write(to: file, atomically: true, encoding: .utf8)
                 print("  ✓  \(CLI.tilde(file))")
             } catch {
@@ -175,8 +202,9 @@ enum HookPlugin {
     }
 
     static func install(_ hosts: [HookHost]) {
-        try? FileManager.default.createDirectory(at: SkinStore.configDir,
-                                                 withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(
+            at: SkinStore.configDir,
+            withIntermediateDirectories: true)
         if hosts.contains(where: \.callsTheCLI) {
             print("hook command: \(command) <event>")
         }
@@ -184,8 +212,9 @@ enum HookPlugin {
         for host in hosts { apply(host, remove: false) }
         cleanLegacy()
         print("")
-        print("Start a new session in \(hosts.map(\.name).joined(separator: " / ")) — "
-            + "the pet will start reacting.")
+        print(
+            "Start a new session in \(hosts.map(\.name).joined(separator: " / ")) — "
+                + "the pet will start reacting.")
     }
 
     static func uninstall(_ hosts: [HookHost]) {
@@ -201,7 +230,8 @@ enum HookPlugin {
             print("  ✓  removed the old \(CLI.tilde(script))")
         }
         let older = URL(fileURLWithPath: NSHomeDirectory() + "/.claude/pet")
-        if FileManager.default.fileExists(atPath: older.appendingPathComponent("pet-hook.sh").path) {
+        if FileManager.default.fileExists(atPath: older.appendingPathComponent("pet-hook.sh").path)
+        {
             try? FileManager.default.removeItem(at: older)
             print("  ✓  removed the old hook at ~/.claude/pet")
         }
@@ -223,18 +253,22 @@ enum HookPlugin {
                 let installed = ([file] + alternates).filter {
                     FileManager.default.fileExists(atPath: $0.path)
                 }
-                let where_ = installed.isEmpty ? "not registered"
-                                               : installed.map(CLI.tilde).joined(separator: ", ")
-                print("  \(where_)")
+                let location =
+                    installed.isEmpty
+                    ? "not registered"
+                    : installed.map(CLI.tilde).joined(separator: ", ")
+                print("  \(location)")
             }
             if host.id == "claude" {
-                let managed = Set(host.files.map { $0.deletingLastPathComponent().standardizedFileURL.path })
+                let managed = Set(
+                    host.files.map { $0.deletingLastPathComponent().standardizedFileURL.path })
                 let stray = HookHost.otherClaudeDirs(besides: managed).filter {
                     registeredCount(in: $0.appendingPathComponent(host.fileName)) > 0
                 }
                 for dir in stray {
                     print("  !  \(CLI.tilde(dir)) also has pet hooks")
-                    print("     clean it with `pet plugin uninstall claude --path \(CLI.tilde(dir))`")
+                    print(
+                        "     clean it with `pet plugin uninstall claude --path \(CLI.tilde(dir))`")
                 }
             }
         }

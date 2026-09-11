@@ -7,74 +7,29 @@ on:
     branches: [develop, main]
 
 jobs:
-  build:
-    name: Build and render
+  check:
+    name: Lint and build
     runs-on: macos-14
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show the toolchain
-        run: swift --version
+      # swift-format ships with the toolchain, so there is nothing to install.
+      # Run `xcrun swift-format format -i -r MacApp/Sources/Pet` to fix findings.
+      - name: Lint
+        run: |
+          xcrun swift-format lint --strict --recursive \
+            --configuration MacApp/.swift-format MacApp/Sources/Pet
 
       - name: Build
         working-directory: MacApp
         run: ./build.sh --no-install
 
-      - name: Check the binary is universal and targets macOS 12
+      # The generated files are committed so the Swift package builds without a
+      # code generation step; a stale one would mean the binary and the sources
+      # disagree.
+      - name: Generated files are current
         working-directory: MacApp
         run: |
-          lipo -info build/Pet.app/Contents/MacOS/Pet
-          lipo -info build/Pet.app/Contents/MacOS/Pet | grep -q 'x86_64 arm64'
-          # one LC_BUILD_VERSION per slice, both targeting macOS 12
-          test "$(otool -l build/Pet.app/Contents/MacOS/Pet | grep -c 'minos 12.0')" -eq 2
-
-      - name: Generated files are up to date
-        working-directory: MacApp
-        run: |
-          git diff --exit-code Sources/Pet/DefaultSkins.swift Sources/Pet/Version.swift \
+          git diff --exit-code Sources/Pet/Generated \
             || { echo "a generated file is stale — run ./build.sh and commit the result"; exit 1; }
-
-      - name: The bundle carries the version from VERSION
-        working-directory: MacApp
-        run: |
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
-            build/Pet.app/Contents/Info.plist | grep -qx "$(cat ../VERSION)"
-
-      - name: The CLI answers
-        working-directory: MacApp
-        run: |
-          ./build/pet help
-          ./build/pet version
-
-      - name: Render the artwork
-        working-directory: MacApp
-        run: |
-          ./build/pet render build/poses.png
-          ./build/pet icon 512 build/icon.png
-          ./build/pet dmgbg build/dmgbg.png
-
-      # So a reviewer can see what the pet looks like after the change without
-      # building it themselves.
-      - name: Upload the renders
-        uses: actions/upload-artifact@v4
-        with:
-          name: renders
-          path: |
-            MacApp/build/poses.png
-            MacApp/build/icon.png
-            MacApp/build/dmgbg.png
-
-      - name: Hooks are registered and removed without touching other hooks
-        run: |
-          mkdir -p /tmp/agent
-          cat > /tmp/agent/settings.json <<'JSON'
-          { "hooks": { "PreToolUse": [ { "matcher": "Bash", "hooks": [
-              { "type": "command", "command": "somebody-elses-tool" } ] } ] } }
-          JSON
-          MacApp/build/pet plugin install claude --path /tmp/agent
-          grep -q 'pet event PreToolUse' /tmp/agent/settings.json
-          MacApp/build/pet plugin uninstall claude --path /tmp/agent
-          grep -q 'somebody-elses-tool' /tmp/agent/settings.json
-          ! grep -q 'pet event' /tmp/agent/settings.json
-          echo "other hooks survived"

@@ -20,19 +20,21 @@ extension AppDelegate {
         mainMenu.addItem(statusRow)
         mainMenu.addItem(.separator())
 
-        visItem = NSMenuItem(title: hidden ? "Show Pet" : "Hide Pet",
-                             action: #selector(toggleHidden), keyEquivalent: "h")
+        visItem = NSMenuItem(
+            title: hidden ? "Show Pet" : "Hide Pet",
+            action: #selector(toggleHidden), keyEquivalent: "h")
         visItem.target = self
         mainMenu.addItem(visItem)
 
-        let trayItem = NSMenuItem(title: "Hide Menu Bar Icon",
-                                  action: #selector(hideTray), keyEquivalent: "")
+        let trayItem = NSMenuItem(
+            title: "Hide Menu Bar Icon",
+            action: #selector(hideTray), keyEquivalent: "")
         trayItem.target = self
         mainMenu.addItem(trayItem)
         mainMenu.addItem(.separator())
 
         let skinItem = NSMenuItem(title: "Skin", action: nil, keyEquivalent: "")
-        skinMenu.delegate = self          // repopulated from disk each time it opens
+        skinMenu.delegate = self  // repopulated from disk each time it opens
         populateSkinMenu()
         skinItem.submenu = skinMenu
         mainMenu.addItem(skinItem)
@@ -44,31 +46,36 @@ extension AppDelegate {
         mainMenu.addItem(sizeItem)
 
         let pluginItem = NSMenuItem(title: "Agent Plugin", action: nil, keyEquivalent: "")
-        pluginMenu.delegate = self         // re-read from disk each time it opens
+        pluginMenu.delegate = self  // re-read from disk each time it opens
         pluginMenu.autoenablesItems = false
         populatePluginMenu()
         pluginItem.submenu = pluginMenu
         mainMenu.addItem(pluginItem)
         mainMenu.addItem(.separator())
 
-        chaseItem = NSMenuItem(title: "Chase cursor when idle",
-                               action: #selector(toggleChase), keyEquivalent: "")
+        chaseItem = NSMenuItem(
+            title: "Chase cursor when idle",
+            action: #selector(toggleChase), keyEquivalent: "")
         chaseItem.target = self
         chaseItem.state = chaseWhenIdle ? .on : .off
         mainMenu.addItem(chaseItem)
 
-        let hint = NSMenuItem(title: "Drag to move · double-click to toggle chase",
-                              action: nil, keyEquivalent: "")
+        let hint = NSMenuItem(
+            title: "Drag to move · double-click to toggle chase",
+            action: nil, keyEquivalent: "")
         hint.isEnabled = false
         mainMenu.addItem(hint)
         mainMenu.addItem(.separator())
 
         if !cliReachable {
-            let cli = NSMenuItem(title: "Command Line Tool — needs PATH setup",
-                                 action: #selector(showCommandLineInfo), keyEquivalent: "")
+            let cli = NSMenuItem(
+                title: "Command Line Tool — needs PATH setup",
+                action: #selector(showCommandLineInfo), keyEquivalent: "")
             cli.target = self
-            if let warning = NSImage(systemSymbolName: "exclamationmark.triangle.fill",
-                                     accessibilityDescription: "warning") {
+            if let warning = NSImage(
+                systemSymbolName: "exclamationmark.triangle.fill",
+                accessibilityDescription: "warning")
+            {
                 let amber = NSImage.SymbolConfiguration(paletteColors: [.systemOrange])
                 cli.image = warning.withSymbolConfiguration(amber)
             }
@@ -79,8 +86,9 @@ extension AppDelegate {
             cliItem = nil
         }
 
-        let about = NSMenuItem(title: "About Desktop Pet", action: #selector(showAbout),
-                               keyEquivalent: "")
+        let about = NSMenuItem(
+            title: "About Desktop Pet", action: #selector(showAbout),
+            keyEquivalent: "")
         about.target = self
         mainMenu.addItem(about)
 
@@ -118,8 +126,9 @@ extension AppDelegate {
         sizeMenu.addItem(row)
 
         sizeMenu.addItem(.separator())
-        let reset = NSMenuItem(title: "Reset to 100%", action: #selector(resetSize),
-                               keyEquivalent: "")
+        let reset = NSMenuItem(
+            title: "Reset to 100%", action: #selector(resetSize),
+            keyEquivalent: "")
         reset.target = self
         reset.isEnabled = artScale != 1
         sizeResetItem = reset
@@ -165,13 +174,13 @@ extension AppDelegate {
 
     func liveSummary() -> String {
         switch view.pose {
-        case .working:   return "Working — \(lastTool.isEmpty ? "tool" : lastTool)"
-        case .thinking:  return "Claude is thinking"
-        case .alert:     return "Waiting for you"
-        case .failed:    return "A tool failed"
+        case .working: return "Working — \(lastTool.isEmpty ? "tool" : lastTool)"
+        case .thinking: return "Claude is thinking"
+        case .alert: return "Waiting for you"
+        case .failed: return "A tool failed"
         case .celebrate: return "Just finished"
-        case .sleeping:  return "Asleep"
-        default:         return "Idle"
+        case .sleeping: return "Asleep"
+        default: return "Idle"
         }
     }
 
@@ -197,13 +206,15 @@ extension AppDelegate {
         if !sprites.isEmpty {
             skinMenu.addItem(.separator())
             for (i, pet) in sprites.enumerated() {
-                let it = NSMenuItem(title: pet.name, action: #selector(setSpritePet(_:)),
-                                    keyEquivalent: "")
+                let it = NSMenuItem(
+                    title: pet.name, action: #selector(setSpritePet(_:)),
+                    keyEquivalent: "")
                 it.target = self; it.tag = i
                 it.state = pet.id == currentID ? .on : .off
                 // alt-click removes an installed pet
-                let alt = NSMenuItem(title: "Remove \(pet.name)",
-                                     action: #selector(removeSpritePet(_:)), keyEquivalent: "")
+                let alt = NSMenuItem(
+                    title: "Remove \(pet.name)",
+                    action: #selector(removeSpritePet(_:)), keyEquivalent: "")
                 alt.target = self; alt.tag = i
                 alt.isAlternate = true
                 alt.keyEquivalentModifierMask = .option
@@ -217,23 +228,28 @@ extension AppDelegate {
             skinMenu.addItem(it)
         }
         skinMenu.addItem(.separator())
-        for (title, sel) in [("Install Skin from codex-pets.net…", #selector(installSpritePet)),
-                             ("Browse codex-pets.net", #selector(browseSpritePets)),
-                             ("Import Skin…", #selector(importSkin)),
-                             ("Export Current Skin…", #selector(exportSkin))] {
+        for (title, sel) in [
+            ("Install Skin from codex-pets.net…", #selector(installSpritePet)),
+            ("Browse codex-pets.net", #selector(browseSpritePets)),
+            ("Import Skin…", #selector(importSkin)),
+            ("Export Current Skin…", #selector(exportSkin)),
+        ] {
             let it = NSMenuItem(title: title, action: sel, keyEquivalent: "")
             it.target = self
             skinMenu.addItem(it)
         }
 
         skinMenu.addItem(.separator())
-        let where_ = NSMenuItem(title: "Config: \(Self.tildePath(SkinStore.configDir))",
-                                action: nil, keyEquivalent: "")
-        where_.isEnabled = false
-        skinMenu.addItem(where_)
+        let folderRow = NSMenuItem(
+            title: "Config: \(Self.tildePath(SkinStore.configDir))",
+            action: nil, keyEquivalent: "")
+        folderRow.isEnabled = false
+        skinMenu.addItem(folderRow)
 
-        var tail: [(String, Selector)] = [("Open Config Folder", #selector(openSkinsFolder)),
-                                          ("Change Config Folder…", #selector(changeConfigFolder))]
+        var tail: [(String, Selector)] = [
+            ("Open Config Folder", #selector(openSkinsFolder)),
+            ("Change Config Folder…", #selector(changeConfigFolder)),
+        ]
         if SkinStore.isCustomConfigDir && !SkinStore.configDirIsFromEnvironment {
             tail.append(("Use Default Location", #selector(useDefaultConfigFolder)))
         }
@@ -242,7 +258,7 @@ extension AppDelegate {
             let it = NSMenuItem(title: title, action: sel, keyEquivalent: "")
             it.target = self
             if title == "Change Config Folder…" && SkinStore.configDirIsFromEnvironment {
-                it.action = nil                     // $PET_CONFIG_DIR wins; nothing to change
+                it.action = nil  // $PET_CONFIG_DIR wins; nothing to change
                 it.isEnabled = false
                 it.title = "Set by $PET_CONFIG_DIR"
             }
@@ -261,7 +277,8 @@ extension AppDelegate {
         for (i, host) in HookHost.all.enumerated() {
             let registered = HookPlugin.isRegistered(host)
             let title = host.isPresent || registered ? host.name : "\(host.name) — not installed"
-            let it = NSMenuItem(title: title, action: #selector(togglePlugin(_:)), keyEquivalent: "")
+            let it = NSMenuItem(
+                title: title, action: #selector(togglePlugin(_:)), keyEquivalent: "")
             it.target = self
             it.tag = i
             it.state = registered ? .on : .off
@@ -270,19 +287,22 @@ extension AppDelegate {
         }
 
         pluginMenu.addItem(.separator())
-        let hint = NSMenuItem(title: "Tick an agent to let it drive the pet",
-                              action: nil, keyEquivalent: "")
+        let hint = NSMenuItem(
+            title: "Tick an agent to let it drive the pet",
+            action: nil, keyEquivalent: "")
         hint.isEnabled = false
         pluginMenu.addItem(hint)
 
         // a folder we manage that an older install left hooks in
-        let managed = Set(HookHost.claude.files.map {
-            $0.deletingLastPathComponent().standardizedFileURL.path
-        })
+        let managed = Set(
+            HookHost.claude.files.map {
+                $0.deletingLastPathComponent().standardizedFileURL.path
+            })
         for dir in HookHost.otherClaudeDirs(besides: managed)
         where HookPlugin.registeredCount(in: dir.appendingPathComponent("settings.json")) > 0 {
-            let it = NSMenuItem(title: "Also in \(CLI.tilde(dir)) — remove",
-                                action: #selector(removeStrayPlugin(_:)), keyEquivalent: "")
+            let it = NSMenuItem(
+                title: "Also in \(CLI.tilde(dir)) — remove",
+                action: #selector(removeStrayPlugin(_:)), keyEquivalent: "")
             it.target = self
             it.representedObject = dir
             pluginMenu.addItem(it)

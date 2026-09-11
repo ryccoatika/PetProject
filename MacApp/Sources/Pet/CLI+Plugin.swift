@@ -15,7 +15,7 @@ extension CLI {
     static func hosts(_ args: [String]) -> [HookHost] {
         var paths: [URL] = []
         var agent: String?
-        var rest = Array(args.dropFirst())          // drop install/uninstall
+        var rest = Array(args.dropFirst())  // drop install/uninstall
         while let arg = rest.first {
             rest.removeFirst()
             if arg == "--path" || arg == "-p" {
@@ -40,7 +40,9 @@ extension CLI {
             }
             chosen = [host]
         } else {
-            guard paths.isEmpty else { fail("--path needs an agent, e.g. pet plugin install claude --path <dir>") }
+            guard paths.isEmpty else {
+                fail("--path needs an agent, e.g. pet plugin install claude --path <dir>")
+            }
             chosen = HookHost.all.filter(\.isPresent)
             if chosen.isEmpty {
                 fail("no supported agent found (looked for ~/.claude and ~/.codex)")

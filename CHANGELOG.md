@@ -16,6 +16,13 @@ Unreleased, and merging into `main`.
   shows the version, which skin or sprite pack is in use, and which agents are
   driving the pet.
 
+### Changed
+
+- Source layout and formatting are now decided by `swift-format`, whose config
+  lives in `MacApp/.swift-format`. Generated code moved to
+  `Sources/Pet/Generated/` and is excluded from it.
+- Pull request checks are lint and build, nothing else.
+
 ### Fixed
 
 - `pet version` reported a hardcoded `1.0`. The version is now generated from

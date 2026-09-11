@@ -52,13 +52,15 @@ extension AppDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Install a skin from codex-pets.net"
-        alert.informativeText = "Paste a link such as\n"
-                              + "https://codex-pets.net/#/pets/gugakurumiusa\n\n"
-                              + "or just the id:  gugakurumiusa"
+        alert.informativeText =
+            "Paste a link such as\n"
+            + "https://codex-pets.net/#/pets/gugakurumiusa\n\n"
+            + "or just the id:  gugakurumiusa"
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
         field.placeholderString = "link or id"
         if let clip = NSPasteboard.general.string(forType: .string),
-           SpriteInstaller.petID(from: clip) != nil, clip.contains("codex-pets.net") {
+            SpriteInstaller.petID(from: clip) != nil, clip.contains("codex-pets.net")
+        {
             field.stringValue = clip.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         alert.accessoryView = field
@@ -108,7 +110,7 @@ extension AppDelegate {
         panel.title = "Import Skin"
         panel.message = "A .petskin file, or a codex-pets.net pack (folder or .zip)"
         panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = true          // packs arrive as folders
+        panel.canChooseDirectories = true  // packs arrive as folders
         var types: [UTType] = [.json, .zip, .folder]
         if let t = UTType(filenameExtension: "petskin") { types.append(t) }
         panel.allowedContentTypes = types
@@ -116,13 +118,14 @@ extension AppDelegate {
 
         var selected: String?
         for src in panel.urls {
-            if isSpritePack(src) {                  // a codex-pets.net pack
-                do { selected = try SpriteInstaller.install(src.path).id }
-                catch { alert("Could not import \(src.lastPathComponent)", error.localizedDescription) }
+            if isSpritePack(src) {  // a codex-pets.net pack
+                do { selected = try SpriteInstaller.install(src.path).id } catch {
+                    alert("Could not import \(src.lastPathComponent)", error.localizedDescription)
+                }
                 continue
             }
             do {
-                let skin = try Skin(contentsOf: src)       // validate before copying
+                let skin = try Skin(contentsOf: src)  // validate before copying
                 let dest = SkinStore.userDir.appendingPathComponent(src.lastPathComponent)
                 if FileManager.default.fileExists(atPath: dest.path) {
                     try FileManager.default.removeItem(at: dest)
@@ -142,7 +145,8 @@ extension AppDelegate {
     func isSpritePack(_ url: URL) -> Bool {
         var isDir: ObjCBool = false
         if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
-            return FileManager.default.fileExists(atPath: url.appendingPathComponent("pet.json").path)
+            return FileManager.default.fileExists(
+                atPath: url.appendingPathComponent("pet.json").path)
         }
         return url.pathExtension.lowercased() == "zip"
     }
@@ -152,7 +156,7 @@ extension AppDelegate {
         let panel = NSSavePanel()
         panel.title = "Export Skin"
 
-        if let pet = view.sprite {                  // a pack, exported as a zip
+        if let pet = view.sprite {  // a pack, exported as a zip
             panel.nameFieldStringValue = "\(pet.id).codex-pet.zip"
             panel.allowedContentTypes = [.zip]
             guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -162,16 +166,20 @@ extension AppDelegate {
             ditto.arguments = ["-c", "-k", pet.folder.path, url.path]
             try? ditto.run()
             ditto.waitUntilExit()
-            if ditto.terminationStatus == 0 { flash("exported") }
-            else { alert("Could not export \(pet.name)", "The pack could not be archived.") }
+            if ditto.terminationStatus == 0 {
+                flash("exported")
+            } else {
+                alert("Could not export \(pet.name)", "The pack could not be archived.")
+            }
             return
         }
 
         panel.nameFieldStringValue = "\(view.skin.id).petskin"
         if let t = UTType(filenameExtension: "petskin") { panel.allowedContentTypes = [t] }
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try view.skin.write(to: url); flash("exported") }
-        catch { alert("Could not export skin", error.localizedDescription) }
+        do { try view.skin.write(to: url); flash("exported") } catch {
+            alert("Could not export skin", error.localizedDescription)
+        }
     }
 
     func alert(_ title: String, _ detail: String) {

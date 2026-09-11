@@ -43,8 +43,17 @@ hooks, the state file, the loop and the drawing fit together.
 
 - **One change per pull request.** A bug fix and a refactor in the same branch
   are hard to review and harder to revert.
-- **Match the surrounding code.** Swift API Design Guidelines, four spaces, no
-  semicolons, types in `MacApp/Sources/` named after what they hold.
+- **Let the formatter decide layout.** `swift-format` ships with the Xcode
+  toolchain, and the config is in `MacApp/.swift-format`:
+
+  ```sh
+  xcrun swift-format format -i -r MacApp/Sources/Pet    # fix
+  xcrun swift-format lint --strict -r --configuration MacApp/.swift-format MacApp/Sources/Pet
+  ```
+
+  CI runs the lint, so a pull request that disagrees with the formatter will
+  say so. Naming still follows the Swift API Design Guidelines; types live in
+  `MacApp/Sources/Pet/` named after what they hold.
 - **Comment the *why*.** The code says what it does. A comment earns its place
   by explaining a decision that is not obvious — a workaround, a measured
   trade-off, an API that behaves unexpectedly.
@@ -113,8 +122,9 @@ checked it — the third one is the part reviewers care about most.
 Commit messages: a short imperative summary line, then a blank line, then the
 why. Look at `git log` for the house style.
 
-CI builds the app and renders the sheets on every pull request. It will catch a
-compile error; it cannot catch a pet that looks wrong, so say what you saw.
+CI lints and builds every pull request. That catches a compile error and a
+formatting disagreement; it cannot catch a pet that looks wrong, so say what
+you saw.
 
 ## Adding things
 

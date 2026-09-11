@@ -15,17 +15,17 @@ final class SpritePet {
 
         var label: String {
             switch self {
-            case .idle:             return "Idle"
-            case .runningRight:     return "Run right"
-            case .runningLeft:      return "Run left"
-            case .waving:           return "Waving"
-            case .jumping:          return "Jumping"
-            case .failed:           return "Failed"
-            case .waiting:          return "Waiting"
-            case .running:          return "Running"
-            case .review:           return "Review"
-            case .lookAroundRight:  return "Look around - right side"
-            case .lookAroundLeft:   return "Look around - left side"
+            case .idle: return "Idle"
+            case .runningRight: return "Run right"
+            case .runningLeft: return "Run left"
+            case .waving: return "Waving"
+            case .jumping: return "Jumping"
+            case .failed: return "Failed"
+            case .waiting: return "Waiting"
+            case .running: return "Running"
+            case .review: return "Review"
+            case .lookAroundRight: return "Look around - right side"
+            case .lookAroundLeft: return "Look around - left side"
             }
         }
     }
@@ -49,13 +49,13 @@ final class SpritePet {
 
     init?(folder: URL) {
         guard let data = try? Data(contentsOf: folder.appendingPathComponent("pet.json")),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
 
         let sheetName = json["spritesheetPath"] as? String ?? "spritesheet.webp"
         let sheet = folder.appendingPathComponent(sheetName)
         guard let image = NSImage(contentsOf: sheet),
-              let rep = NSBitmapImageRep(data: image.tiffRepresentation ?? Data())
+            let rep = NSBitmapImageRep(data: image.tiffRepresentation ?? Data())
         else { return nil }
 
         self.sheet = rep.cgImage
@@ -73,15 +73,19 @@ final class SpritePet {
         rows = max(1, Int((pixelsHigh / cellH).rounded()))
         cell = NSSize(width: cellW, height: pixelsHigh / CGFloat(rows))
 
-        frameCounts = SpritePet.measureFrames(rep, columns: columns, rows: rows,
-                                              cell: NSSize(width: cellW,
-                                                           height: pixelsHigh / CGFloat(rows)))
+        frameCounts = SpritePet.measureFrames(
+            rep, columns: columns, rows: rows,
+            cell: NSSize(
+                width: cellW,
+                height: pixelsHigh / CGFloat(rows)))
         image.size = NSSize(width: pixelsWide, height: pixelsHigh)
     }
 
     /// A cell counts as used when it has a meaningful number of opaque pixels.
-    private static func measureFrames(_ rep: NSBitmapImageRep, columns: Int, rows: Int,
-                                      cell: NSSize) -> [Int] {
+    private static func measureFrames(
+        _ rep: NSBitmapImageRep, columns: Int, rows: Int,
+        cell: NSSize
+    ) -> [Int] {
         guard let data = rep.bitmapData, rep.samplesPerPixel >= 4 else {
             return Array(repeating: columns, count: rows)
         }
@@ -98,7 +102,7 @@ final class SpritePet {
                     var x = x0
                     while x < min(x0 + cw, rep.pixelsWide) {
                         if data[y * rowBytes + x * spp + 3] > 8 { filled += 1 }
-                        x += 2                      // sampling every other pixel is plenty
+                        x += 2  // sampling every other pixel is plenty
                     }
                     y += 2
                 }
@@ -119,19 +123,22 @@ final class SpritePet {
         let row = min(resolve(track).rawValue, rows - 1)
         let column = min(frame, (row < frameCounts.count ? frameCounts[row] : 1) - 1)
         // the sheet's origin is top-left; NSImage draws from bottom-left
-        let source = NSRect(x: CGFloat(column) * cell.width,
-                            y: image.size.height - CGFloat(row + 1) * cell.height,
-                            width: cell.width, height: cell.height)
+        let source = NSRect(
+            x: CGFloat(column) * cell.width,
+            y: image.size.height - CGFloat(row + 1) * cell.height,
+            width: cell.width, height: cell.height)
 
         // Snap to 1:1 when the cell nearly fits: an unscaled blit is far
         // cheaper than resampling every frame, and pixel art looks better for
         // it too.
         var scale = min(rect.width / cell.width, rect.height / cell.height)
         if scale > 0.92 && scale < 1.08 { scale = 1 }
-        let size = NSSize(width: (cell.width * scale).rounded(),
-                          height: (cell.height * scale).rounded())
-        let target = NSRect(x: (rect.midX - size.width / 2).rounded(), y: rect.minY.rounded(),
-                            width: size.width, height: size.height)
+        let size = NSSize(
+            width: (cell.width * scale).rounded(),
+            height: (cell.height * scale).rounded())
+        let target = NSRect(
+            x: (rect.midX - size.width / 2).rounded(), y: rect.minY.rounded(),
+            width: size.width, height: size.height)
 
         NSGraphicsContext.saveGraphicsState()
         if flipped {
@@ -141,12 +148,14 @@ final class SpritePet {
             t.concat()
         }
         if let cropped = cellImage(row: row, column: column),
-           let context = NSGraphicsContext.current?.cgContext {
+            let context = NSGraphicsContext.current?.cgContext
+        {
             context.interpolationQuality = scale == 1 ? .none : .medium
             context.draw(cropped, in: target)
         } else {
-            image.draw(in: target, from: source, operation: .sourceOver, fraction: 1,
-                       respectFlipped: false, hints: [.interpolation: NSImageInterpolation.high])
+            image.draw(
+                in: target, from: source, operation: .sourceOver, fraction: 1,
+                respectFlipped: false, hints: [.interpolation: NSImageInterpolation.high])
         }
         NSGraphicsContext.restoreGraphicsState()
     }
@@ -163,15 +172,17 @@ final class SpritePet {
         let key = row * 100 + column
         if let cached = cells[key] { return cached }
         guard let sheet else { return nil }
-        let rect = CGRect(x: CGFloat(column) * cell.width, y: CGFloat(row) * cell.height,
-                          width: cell.width, height: cell.height)
+        let rect = CGRect(
+            x: CGFloat(column) * cell.width, y: CGFloat(row) * cell.height,
+            width: cell.width, height: cell.height)
         guard let cropped = sheet.cropping(to: rect) else { return nil }
 
         let width = Int(cell.width), height = Int(cell.height)
-        guard let context = CGContext(
-            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else {
             cells[key] = cropped
             return cropped

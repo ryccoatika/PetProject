@@ -13,19 +13,22 @@ enum SkinStore {
     ///   1. $PET_CONFIG_DIR   2. the folder chosen in the menu   3. ~/.config/pet
     static var configDir: URL {
         if let env = ProcessInfo.processInfo.environment["PET_CONFIG_DIR"],
-           !env.trimmingCharacters(in: .whitespaces).isEmpty {
+            !env.trimmingCharacters(in: .whitespaces).isEmpty
+        {
             return expand(env)
         }
         if let chosen = Prefs.store.string(forKey: configKey),
-           !chosen.trimmingCharacters(in: .whitespaces).isEmpty {
+            !chosen.trimmingCharacters(in: .whitespaces).isEmpty
+        {
             return expand(chosen)
         }
         return defaultConfigDir
     }
 
     static var defaultConfigDir: URL {
-        URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".config/pet",
-                                                                       isDirectory: true)
+        URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(
+            ".config/pet",
+            isDirectory: true)
     }
 
     /// True when the location has been overridden away from the default.
@@ -53,8 +56,9 @@ enum SkinStore {
 
     /// Skins folder used by builds before the move to ~/.config/pet.
     static var legacyDir: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
+        let base = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask)[0]
         return base.appendingPathComponent("DesktopPet/Skins", isDirectory: true)
     }
 
@@ -69,8 +73,9 @@ enum SkinStore {
     }
 
     static func files(in dir: URL) -> [URL] {
-        let found = (try? FileManager.default.contentsOfDirectory(
-            at: dir, includingPropertiesForKeys: nil)) ?? []
+        let found =
+            (try? FileManager.default.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: nil)) ?? []
         return found.filter { extensions.contains($0.pathExtension.lowercased()) }
     }
 
@@ -103,7 +108,9 @@ enum SkinStore {
         for (name, json) in DefaultSkinData.files {
             let dest = userDir.appendingPathComponent(name)
             guard !FileManager.default.fileExists(atPath: dest.path) else { continue }
-            if (try? json.write(to: dest, atomically: true, encoding: .utf8)) != nil { wrote = true }
+            if (try? json.write(to: dest, atomically: true, encoding: .utf8)) != nil {
+                wrote = true
+            }
         }
         return wrote
     }
@@ -112,7 +119,8 @@ enum SkinStore {
     static var embeddedSkins: [Skin] {
         DefaultSkinData.files.compactMap { _, json in
             guard let data = json.data(using: .utf8),
-                  let doc = try? JSONDecoder().decode(SkinDoc.self, from: data) else { return nil }
+                let doc = try? JSONDecoder().decode(SkinDoc.self, from: data)
+            else { return nil }
             return try? Skin(doc: doc)
         }
     }
@@ -121,11 +129,12 @@ enum SkinStore {
         seedIfEmpty()
         var skins: [Skin] = [], errors: [String] = []
         for f in files(in: userDir).sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            do { skins.append(try Skin(contentsOf: f)) }
-            catch { errors.append("\(f.lastPathComponent) — \(error.localizedDescription)") }
+            do { skins.append(try Skin(contentsOf: f)) } catch {
+                errors.append("\(f.lastPathComponent) — \(error.localizedDescription)")
+            }
         }
         skins.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        if skins.isEmpty { skins = embeddedSkins }        // folder unwritable? use memory
+        if skins.isEmpty { skins = embeddedSkins }  // folder unwritable? use memory
         if skins.isEmpty { skins = [.fallback] }
         return (skins, errors)
     }

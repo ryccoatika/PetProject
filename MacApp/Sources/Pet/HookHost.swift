@@ -40,7 +40,7 @@ struct HookHost {
     var files: [URL] {
         switch kind {
         case .json(let files, _, _, _): return files
-        case .plugin(let file, _):      return [file]
+        case .plugin(let file, _): return [file]
         }
     }
 
@@ -75,7 +75,8 @@ struct HookHost {
     /// reported by `pet plugin status` so an old install is not forgotten.
     static func otherClaudeDirs(besides managedPaths: Set<String>) -> [URL] {
         let home = URL(fileURLWithPath: NSHomeDirectory())
-        let entries = (try? FileManager.default.contentsOfDirectory(atPath: NSHomeDirectory())) ?? []
+        let entries =
+            (try? FileManager.default.contentsOfDirectory(atPath: NSHomeDirectory())) ?? []
         return entries.sorted()
             .filter { $0 == ".claude" || $0.hasPrefix(".claude-") }
             .map { home.appendingPathComponent($0).standardizedFileURL }
@@ -95,67 +96,80 @@ struct HookHost {
         }
         switch kind {
         case .json(_, let events, let timeout, let supportsAsync):
-            return HookHost(id: id, name: name, fileName: fileName,
-                            kind: .json(files: resolved, events: events,
-                                        timeout: timeout, supportsAsync: supportsAsync))
+            return HookHost(
+                id: id, name: name, fileName: fileName,
+                kind: .json(
+                    files: resolved, events: events,
+                    timeout: timeout, supportsAsync: supportsAsync))
         case .plugin(_, let alternates):
-            return HookHost(id: id, name: name, fileName: fileName,
-                            kind: .plugin(file: resolved[0], alternates: alternates))
+            return HookHost(
+                id: id, name: name, fileName: fileName,
+                kind: .plugin(file: resolved[0], alternates: alternates))
         }
     }
 
     static var claude: HookHost {
-        HookHost(id: "claude", name: "Claude Code", fileName: "settings.json",
-                 kind: .json(
-                    files: [defaultClaudeDir.appendingPathComponent("settings.json")],
-                    events: [HookEvent("SessionStart"), HookEvent("UserPromptSubmit"),
-                             HookEvent("PreToolUse", matcher: "*"),
-                             HookEvent("PostToolUse", matcher: "*"),
-                             HookEvent("PostToolUseFailure", matcher: "*"),
-                             HookEvent("StopFailure"),
-                             HookEvent("Notification"), HookEvent("Stop"),
-                             HookEvent("SessionEnd")],
-                    timeout: 5, supportsAsync: true))
+        HookHost(
+            id: "claude", name: "Claude Code", fileName: "settings.json",
+            kind: .json(
+                files: [defaultClaudeDir.appendingPathComponent("settings.json")],
+                events: [
+                    HookEvent("SessionStart"), HookEvent("UserPromptSubmit"),
+                    HookEvent("PreToolUse", matcher: "*"),
+                    HookEvent("PostToolUse", matcher: "*"),
+                    HookEvent("PostToolUseFailure", matcher: "*"),
+                    HookEvent("StopFailure"),
+                    HookEvent("Notification"), HookEvent("Stop"),
+                    HookEvent("SessionEnd"),
+                ],
+                timeout: 5, supportsAsync: true))
     }
 
     /// Codex keeps hooks in ~/.codex/hooks.json. Matchers there are regexes,
     /// so they are omitted, which matches every tool.
     static var codex: HookHost {
         let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".codex")
-        return HookHost(id: "codex", name: "Codex", fileName: "hooks.json",
-                        kind: .json(
-                            files: [dir.appendingPathComponent("hooks.json")],
-                            events: [HookEvent("SessionStart"), HookEvent("UserPromptSubmit"),
-                                     HookEvent("PreToolUse"), HookEvent("PostToolUse"),
-                                     HookEvent("PermissionRequest", as: "Notification"),
-                                     HookEvent("Stop"), HookEvent("SessionEnd")],
-                            timeout: 5, supportsAsync: true))
+        return HookHost(
+            id: "codex", name: "Codex", fileName: "hooks.json",
+            kind: .json(
+                files: [dir.appendingPathComponent("hooks.json")],
+                events: [
+                    HookEvent("SessionStart"), HookEvent("UserPromptSubmit"),
+                    HookEvent("PreToolUse"), HookEvent("PostToolUse"),
+                    HookEvent("PermissionRequest", as: "Notification"),
+                    HookEvent("Stop"), HookEvent("SessionEnd"),
+                ],
+                timeout: 5, supportsAsync: true))
     }
 
     /// Gemini CLI uses its own event vocabulary, its timeout is in
     /// milliseconds, and it has no async flag — hooks there block briefly.
     static var gemini: HookHost {
         let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".gemini")
-        return HookHost(id: "gemini", name: "Gemini CLI", fileName: "settings.json",
-                        kind: .json(
-                            files: [dir.appendingPathComponent("settings.json")],
-                            events: [HookEvent("SessionStart"),
-                                     HookEvent("BeforeAgent", as: "UserPromptSubmit"),
-                                     HookEvent("BeforeTool", as: "PreToolUse"),
-                                     HookEvent("AfterTool", as: "PostToolUse"),
-                                     HookEvent("AfterAgent", as: "Stop"),
-                                     HookEvent("Notification"), HookEvent("SessionEnd")],
-                            timeout: 5000, supportsAsync: false))
+        return HookHost(
+            id: "gemini", name: "Gemini CLI", fileName: "settings.json",
+            kind: .json(
+                files: [dir.appendingPathComponent("settings.json")],
+                events: [
+                    HookEvent("SessionStart"),
+                    HookEvent("BeforeAgent", as: "UserPromptSubmit"),
+                    HookEvent("BeforeTool", as: "PreToolUse"),
+                    HookEvent("AfterTool", as: "PostToolUse"),
+                    HookEvent("AfterAgent", as: "Stop"),
+                    HookEvent("Notification"), HookEvent("SessionEnd"),
+                ],
+                timeout: 5000, supportsAsync: false))
     }
 
     /// opencode loads JavaScript plugins. Both plugin/ and plugins/ are read
     /// (verified against 1.18.x), so install into one and clean both.
     static var opencode: HookHost {
         let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".config/opencode")
-        return HookHost(id: "opencode", name: "opencode", fileName: "pet.js",
-                        kind: .plugin(
-                            file: dir.appendingPathComponent("plugin/pet.js"),
-                            alternates: [dir.appendingPathComponent("plugins/pet.js")]))
+        return HookHost(
+            id: "opencode", name: "opencode", fileName: "pet.js",
+            kind: .plugin(
+                file: dir.appendingPathComponent("plugin/pet.js"),
+                alternates: [dir.appendingPathComponent("plugins/pet.js")]))
     }
 
     static var all: [HookHost] { [.claude, .codex, .gemini, .opencode] }

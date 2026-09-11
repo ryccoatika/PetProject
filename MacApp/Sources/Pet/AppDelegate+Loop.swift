@@ -23,7 +23,7 @@ extension AppDelegate {
         if hidden { return 2 }
         // Motion is what the eye catches, so only movement gets the full rate.
         if dragging || view.held || view.pose == .running { return 30 }
-        if isActive { return 20 }          // typing, thinking, alerting
+        if isActive { return 20 }  // typing, thinking, alerting
         // chasing: wake up while the cursor is actually moving, so the pet
         // starts after it without a visible delay
         if chaseWhenIdle, Date().timeIntervalSince(lastMouseMove) < 0.6 { return 30 }
@@ -34,13 +34,15 @@ extension AppDelegate {
     func writeRuntime() {
         let dir = SkinStore.configDir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let line = "pid=\(ProcessInfo.processInfo.processIdentifier) "
-                 + "skin=\(view.sprite?.id ?? view.skin.id) "
-                 + "hidden=\(hidden ? 1 : 0) chase=\(chaseWhenIdle ? 1 : 0) "
-                 + "tray=\(trayHidden ? "hidden" : "shown") "
-                 + "cli=\(cliReachable ? "ok" : "needs-path") "
-                 + "size=\(Int(artScale * 100))%\n"
-        try? line.write(to: dir.appendingPathComponent("runtime"), atomically: true, encoding: .utf8)
+        let line =
+            "pid=\(ProcessInfo.processInfo.processIdentifier) "
+            + "skin=\(view.sprite?.id ?? view.skin.id) "
+            + "hidden=\(hidden ? 1 : 0) chase=\(chaseWhenIdle ? 1 : 0) "
+            + "tray=\(trayHidden ? "hidden" : "shown") "
+            + "cli=\(cliReachable ? "ok" : "needs-path") "
+            + "size=\(Int(artScale * 100))%\n"
+        try? line.write(
+            to: dir.appendingPathComponent("runtime"), atomically: true, encoding: .utf8)
     }
 
     /// Re-read preferences after the CLI changed them.
@@ -93,10 +95,12 @@ extension AppDelegate {
 
     /// Keep the pet reachable: never let a drop land it off every screen.
     func clampToScreen(_ p: CGPoint) -> CGPoint {
-        let screen = NSScreen.screens.first { $0.frame.contains(p) } ?? NSScreen.main ?? NSScreen.screens[0]
+        let screen =
+            NSScreen.screens.first { $0.frame.contains(p) } ?? NSScreen.main ?? NSScreen.screens[0]
         let f = screen.visibleFrame
-        return CGPoint(x: min(max(p.x, f.minX + 50), f.maxX - 50),
-                       y: min(max(p.y, f.minY + 4), f.maxY - size.height))
+        return CGPoint(
+            x: min(max(p.x, f.minX + 50), f.maxX - 50),
+            y: min(max(p.y, f.minY + 4), f.maxY - size.height))
     }
 
     /// Moving a window is a trip to the window server; skip it when the pet
@@ -104,8 +108,9 @@ extension AppDelegate {
     /// Resize the window to suit the current art, keeping the pet in place.
     func applyWindowSize() {
         let design = view.sprite == nil ? AppDelegate.vectorSize : AppDelegate.spriteSize
-        let wanted = NSSize(width: (design.width * artScale).rounded(),
-                            height: (design.height * artScale).rounded())
+        let wanted = NSSize(
+            width: (design.width * artScale).rounded(),
+            height: (design.height * artScale).rounded())
         guard wanted != size || view.bounds.size != design else { return }
         size = wanted
         window.setContentSize(wanted)
@@ -113,7 +118,7 @@ extension AppDelegate {
         // Drawing stays in design coordinates: AppKit scales a view whose
         // bounds are smaller than its frame, so no art has to know about this.
         view.setBoundsSize(design)
-        placedAt = CGPoint(x: CGFloat.infinity, y: CGFloat.infinity)   // force a reposition
+        placedAt = CGPoint(x: CGFloat.infinity, y: CGFloat.infinity)  // force a reposition
         pos = clampToScreen(pos)
         place()
         view.needsDisplay = true
@@ -121,8 +126,9 @@ extension AppDelegate {
 
     /// Change how big the pet is drawn. Clamped, saved, and applied at once.
     func setArtScale(_ value: CGFloat, save: Bool = true) {
-        let clamped = min(max(value, AppDelegate.scaleRange.lowerBound),
-                          AppDelegate.scaleRange.upperBound)
+        let clamped = min(
+            max(value, AppDelegate.scaleRange.lowerBound),
+            AppDelegate.scaleRange.upperBound)
         guard clamped != artScale else { return }
         artScale = clamped
         if save {
@@ -161,9 +167,13 @@ extension AppDelegate {
 
         func idlePose() {
             view.label = nil
-            if quiet > 25 { view.pose = .sleeping; view.zPhase += 0.006 * tickScale }
-            else if quiet > 10 && Int(quiet) % 6 < 2 { view.pose = .grooming }
-            else { view.pose = .sitting }
+            if quiet > 25 {
+                view.pose = .sleeping; view.zPhase += 0.006 * tickScale
+            } else if quiet > 10 && Int(quiet) % 6 < 2 {
+                view.pose = .grooming
+            } else {
+                view.pose = .sitting
+            }
         }
 
         switch event {
@@ -189,8 +199,10 @@ extension AppDelegate {
         let frames = sprite.frames(in: track)
         guard frames > 1 else { view.spriteFrame = 0; return }
         // idle and sleep breathe slowly; movement and reactions run quicker
-        let interval = view.pose == .sleeping ? 0.47
-                     : (isActive || view.pose == .running ? 0.13 : 0.27)
+        let interval =
+            view.pose == .sleeping
+            ? 0.47
+            : (isActive || view.pose == .running ? 0.13 : 0.27)
         sinceSpriteFrame += 1 / max(currentFPS, 1)
         if sinceSpriteFrame >= interval {
             sinceSpriteFrame = 0
@@ -198,7 +210,7 @@ extension AppDelegate {
         }
         if track != lastTrack {
             lastTrack = track
-            view.spriteFrame = 0            // restart a track from its first frame
+            view.spriteFrame = 0  // restart a track from its first frame
         }
     }
 
@@ -210,7 +222,7 @@ extension AppDelegate {
         let dt = 1 / max(currentFPS, 1)
         sinceStateRead += dt
 
-        if hidden {                      // still follow Claude so the menu stays useful
+        if hidden {  // still follow Claude so the menu stays useful
             if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
             updatePose()
             isActive = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
@@ -230,12 +242,13 @@ extension AppDelegate {
         // Never re-evaluate mid-drag: a fast drag can outrun the window and
         // would otherwise make it click-through, dropping the cat.
         if !dragging {
-            let local = NSPoint(x: mouseNow.x - window.frame.minX, y: mouseNow.y - window.frame.minY)
+            let local = NSPoint(
+                x: mouseNow.x - window.frame.minX, y: mouseNow.y - window.frame.minY)
             let grabbable = view.grabRect.contains(local)
             if window.ignoresMouseEvents == grabbable { window.ignoresMouseEvents = !grabbable }
         }
 
-        if dragging {                    // user is holding it: no autonomy
+        if dragging {  // user is holding it: no autonomy
             view.phase += 0.3
             view.needsDisplay = true
             return
@@ -272,7 +285,7 @@ extension AppDelegate {
         } else if !active {
             view.facingRight = mouse.x > pos.x
         } else {
-            view.facingRight = true            // face the user while busy
+            view.facingRight = true  // face the user while busy
         }
 
         let ex = max(-1, min(1, (mouse.x - pos.x) / 130))
@@ -293,8 +306,9 @@ extension AppDelegate {
             view.needsDisplay = true
         } else {
             // sprite frames change every few ticks; redraw only then
-            let signature = "\(view.spriteFrame)|\(view.pose)|\(view.held)|"
-                          + "\(Int(pos.x))|\(Int(pos.y))|\(view.flashLabel ?? "")"
+            let signature =
+                "\(view.spriteFrame)|\(view.pose)|\(view.held)|"
+                + "\(Int(pos.x))|\(Int(pos.y))|\(view.flashLabel ?? "")"
             if signature != lastSpriteSignature {
                 lastSpriteSignature = signature
                 view.needsDisplay = true

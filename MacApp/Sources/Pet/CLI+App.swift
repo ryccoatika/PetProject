@@ -12,8 +12,10 @@ extension CLI {
     static func status() {
         Prefs.refresh()
         let d = Prefs.store
-        let live = (try? String(contentsOf: SkinStore.configDir.appendingPathComponent("runtime"),
-                                encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let live =
+            (try? String(
+                contentsOf: SkinStore.configDir.appendingPathComponent("runtime"),
+                encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
         let isRunning = !running.isEmpty
         print("app        : \(isRunning ? "running" : "not running")")
         if isRunning, let live { print("             \(live)") }
@@ -21,18 +23,23 @@ extension CLI {
             print("             ! `pet` is installed but your shell cannot find it —")
             print("               see Command Line Tool in the menu bar")
         }
-        print("config     : \(tilde(SkinStore.configDir))\(SkinStore.configDirIsFromEnvironment ? "  ($PET_CONFIG_DIR)" : SkinStore.isCustomConfigDir ? "  (custom)" : "")")
+        print(
+            "config     : \(tilde(SkinStore.configDir))\(SkinStore.configDirIsFromEnvironment ? "  ($PET_CONFIG_DIR)" : SkinStore.isCustomConfigDir ? "  (custom)" : "")"
+        )
         let skins = SkinStore.load().skins
         print("skins      : \(skins.count) in \(tilde(SkinStore.userDir))")
         print("current    : \(d.string(forKey: "petSkin") ?? "tabby")")
         print("hidden     : \(d.bool(forKey: "petHidden") ? "yes" : "no")")
         print("chase      : \(d.bool(forKey: "petChase") ? "on" : "off")")
         print("menu bar   : \(d.bool(forKey: "petTrayHidden") ? "hidden" : "shown")")
-        print("size       : \(Int((((d.object(forKey: "petScale") as? Double) ?? 1) * 100).rounded()))%")
+        print(
+            "size       : \(Int((((d.object(forKey: "petScale") as? Double) ?? 1) * 100).rounded()))%"
+        )
 
         let state = SkinStore.configDir.appendingPathComponent("state")
         if let raw = try? String(contentsOf: state, encoding: .utf8) {
-            let parts = raw.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "|")
+            let parts = raw.trimmingCharacters(in: .whitespacesAndNewlines).components(
+                separatedBy: "|")
             if parts.count >= 3, let ts = Double(parts[2]) {
                 let age = Int(Date().timeIntervalSince1970 - ts)
                 let tool = parts[1].isEmpty ? "" : " (\(parts[1]))"
@@ -68,8 +75,10 @@ extension CLI {
             Prefs.store.set(hide, forKey: "petTrayHidden")
             Prefs.store.synchronize()
             Prefs.notifyRunningApp()
-            print(hide ? "menu bar icon hidden — `pet tray show` brings it back"
-                       : "menu bar icon shown")
+            print(
+                hide
+                    ? "menu bar icon hidden — `pet tray show` brings it back"
+                    : "menu bar icon shown")
         case nil, "status":
             print(Prefs.store.bool(forKey: "petTrayHidden") ? "hidden" : "shown")
         default:

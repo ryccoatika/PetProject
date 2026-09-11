@@ -45,7 +45,7 @@ enum CLI {
         guard let name else { exit(0) }
         var tool = ""
         var recorded = name
-        if isatty(FileHandle.standardInput.fileDescriptor) == 0 {   // only when piped
+        if isatty(FileHandle.standardInput.fileDescriptor) == 0 {  // only when piped
             let data = FileHandle.standardInput.readDataToEndOfFile()
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 tool = json["tool_name"] as? String ?? ""
@@ -70,7 +70,8 @@ enum CLI {
             if let error = response["error"], !(error is NSNull) { return true }
             if let ok = response["success"] as? Bool, !ok { return true }
             if let status = response["status"] as? String,
-               status.lowercased().contains("error") || status.lowercased().contains("fail") {
+                status.lowercased().contains("error") || status.lowercased().contains("fail")
+            {
                 return true
             }
         }
@@ -83,49 +84,50 @@ enum CLI {
     }
 
     static func help() {
-        print("""
-        pet — Desktop Pet
+        print(
+            """
+            pet — Desktop Pet
 
-        USAGE
-          pet <command> [arguments]
+            USAGE
+              pet <command> [arguments]
 
-        APP
-          status                 what the pet is doing right now
-          start | stop | restart
-          show | hide            show or hide the pet
-          tray show | tray hide  show or hide the menu bar icon
-          size [50…200 | reset]  how big the pet is drawn
+            APP
+              status                 what the pet is doing right now
+              start | stop | restart
+              show | hide            show or hide the pet
+              tray show | tray hide  show or hide the menu bar icon
+              size [50…200 | reset]  how big the pet is drawn
 
-        SKINS AND SPRITE PETS
-          skins                  list everything installed
-          skin <id>              switch to a skin or sprite pet
-          skins dir              print the skins folder
-          pets                   list sprite pets (codex-pets.net packs)
-          pets install <id>      download one from codex-pets.net
-          pets install <path>    install a local folder or .zip
-          pets remove <id>
-          pets dir               print the sprite pet folder
+            SKINS AND SPRITE PETS
+              skins                  list everything installed
+              skin <id>              switch to a skin or sprite pet
+              skins dir              print the skins folder
+              pets                   list sprite pets (codex-pets.net packs)
+              pets install <id>      download one from codex-pets.net
+              pets install <path>    install a local folder or .zip
+              pets remove <id>
+              pets dir               print the sprite pet folder
 
-        CONFIG
-          config                 print the config folder and where it came from
-          config set <path>      use a different config folder
-          config reset           go back to ~/.config/pet
+            CONFIG
+              config                 print the config folder and where it came from
+              config set <path>      use a different config folder
+              config reset           go back to ~/.config/pet
 
-        AGENT PLUGIN
-          plugin install [agent]   make the pet react to your coding agent
-                                   agent = claude | codex | gemini | opencode
-          plugin uninstall [agent] default: every agent found
-          plugin status
-          --path <dir>             a config folder other than the default;
-                                   repeatable
-          event <name>             record activity; this is what the hooks call
+            AGENT PLUGIN
+              plugin install [agent]   make the pet react to your coding agent
+                                       agent = claude | codex | gemini | opencode
+              plugin uninstall [agent] default: every agent found
+              plugin status
+              --path <dir>             a config folder other than the default;
+                                       repeatable
+              event <name>             record activity; this is what the hooks call
 
-        OTHER
-          render <file>          render every skin and pose to a PNG sheet
-          icon [size] <file>     render the app icon
-          uninstall [--all]      remove the app and this CLI (--all: config too)
-          version | help
-        """)
+            OTHER
+              render <file>          render every skin and pose to a PNG sheet
+              icon [size] <file>     render the app icon
+              uninstall [--all]      remove the app and this CLI (--all: config too)
+              version | help
+            """)
     }
 
     static func run(_ argv: [String]) -> Never {
@@ -134,21 +136,21 @@ enum CLI {
         switch cmd {
         case "help", "--help", "-h": help()
         case "version", "--version": print("pet \(Build.version)")
-        case "status":               status()
-        case "start":                start()
-        case "stop":                 stop()
-        case "restart":              stop(); Thread.sleep(forTimeInterval: 0.6); start()
-        case "show":                 setHidden(false)
-        case "hide":                 setHidden(true)
-        case "tray":                 tray(args.first)
-        case "size":                 size(args.first)
-        case "skins":                args.first == "dir" ? print(SkinStore.userDir.path) : listSkins()
-        case "pets":                 pets(args)
-        case "skin":                 setSkin(args.first)
-        case "config":               config(args)
-        case "event":                event(args.first)
-        case "plugin":               plugin(args)
-        case "uninstall":            uninstall(all: args.contains("--all"))
+        case "status": status()
+        case "start": start()
+        case "stop": stop()
+        case "restart": stop(); Thread.sleep(forTimeInterval: 0.6); start()
+        case "show": setHidden(false)
+        case "hide": setHidden(true)
+        case "tray": tray(args.first)
+        case "size": size(args.first)
+        case "skins": args.first == "dir" ? print(SkinStore.userDir.path) : listSkins()
+        case "pets": pets(args)
+        case "skin": setSkin(args.first)
+        case "config": config(args)
+        case "event": event(args.first)
+        case "plugin": plugin(args)
+        case "uninstall": uninstall(all: args.contains("--all"))
         default: fail("unknown command \"\(cmd)\" — try: pet help")
         }
         exit(0)

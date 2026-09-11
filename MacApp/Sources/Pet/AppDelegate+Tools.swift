@@ -11,19 +11,20 @@ extension AppDelegate {
     func installCommandLineTool() {
         let fm = FileManager.default
         guard let exe = Bundle.main.executableURL?.resolvingSymlinksInPath(),
-              exe.lastPathComponent == "Pet" else { return }
+            exe.lastPathComponent == "Pet"
+        else { return }
 
         var target: String?
         for dir in ["/usr/local/bin", NSHomeDirectory() + "/.local/bin"] {
             let link = dir + "/pet"
             if let dest = try? fm.destinationOfSymbolicLink(atPath: link) {
-                if dest == exe.path { return }                  // already correct
+                if dest == exe.path { return }  // already correct
                 if dest.contains("/Pet.app/Contents/MacOS/") {  // an older install
                     try? fm.removeItem(atPath: link)
                     try? fm.createSymbolicLink(atPath: link, withDestinationPath: exe.path)
                     return
                 }
-                return                                          // someone else's `pet`
+                return  // someone else's `pet`
             }
             if fm.fileExists(atPath: link) { return }
             if target == nil, fm.isWritableFile(atPath: dir) { target = dir }
@@ -53,15 +54,17 @@ extension AppDelegate {
             DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
                 if probe.isRunning { probe.terminate() }
             }
-            let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(),
-                                encoding: .utf8) ?? ""
+            let output =
+                String(
+                    data: pipe.fileHandleForReading.readDataToEndOfFile(),
+                    encoding: .utf8) ?? ""
             probe.waitUntilExit()
             let found = probe.terminationStatus == 0 && output.contains("/pet")
             DispatchQueue.main.async {
                 guard let self, found != self.cliReachable else { return }
                 self.cliReachable = found
                 self.writeRuntime()
-                self.buildMenu()               // the warning appears or goes away
+                self.buildMenu()  // the warning appears or goes away
             }
         }
     }
@@ -80,37 +83,42 @@ extension AppDelegate {
     var cliOnDefaultPath: Bool {
         guard let path = cliPath else { return false }
         let dir = (path as NSString).deletingLastPathComponent
-        let system = (try? String(contentsOfFile: "/etc/paths", encoding: .utf8))?
+        let system =
+            (try? String(contentsOfFile: "/etc/paths", encoding: .utf8))?
             .split(separator: "\n").map(String.init) ?? []
         return system.contains(dir)
     }
 
     @objc func showCommandLineInfo() {
-        checkCommandLineReachable()          // it may have been fixed since
+        checkCommandLineReachable()  // it may have been fixed since
         let alert = NSAlert()
         guard let path = cliPath else {
             alert.messageText = "The pet command is not installed"
-            alert.informativeText = "Reopening the app usually installs it. It normally goes to "
-                                  + "/usr/local/bin, or ~/.local/bin when that is not writable."
+            alert.informativeText =
+                "Reopening the app usually installs it. It normally goes to "
+                + "/usr/local/bin, or ~/.local/bin when that is not writable."
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()
             return
         }
         let dir = (path as NSString).deletingLastPathComponent
-        let line = "export PATH=\"\(dir.replacingOccurrences(of: NSHomeDirectory(), with: "$HOME")):$PATH\""
+        let line =
+            "export PATH=\"\(dir.replacingOccurrences(of: NSHomeDirectory(), with: "$HOME")):$PATH\""
         alert.messageText = "The pet command is installed"
         if cliOnDefaultPath {
-            alert.informativeText = "It is at \(CLI.tilde(URL(fileURLWithPath: path))) and should "
-                                  + "work in any terminal.\n\nTry:  pet help"
+            alert.informativeText =
+                "It is at \(CLI.tilde(URL(fileURLWithPath: path))) and should "
+                + "work in any terminal.\n\nTry:  pet help"
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()
             return
         }
-        alert.informativeText = "It is at \(CLI.tilde(URL(fileURLWithPath: path))), but that folder "
-                              + "is not on the default PATH, so your shell may not find it.\n\n"
-                              + "Add this line to your shell profile "
-                              + "(~/.zshrc):\n\n    \(line)\n\n"
-                              + "Until then the full path works:  \(path) help"
+        alert.informativeText =
+            "It is at \(CLI.tilde(URL(fileURLWithPath: path))), but that folder "
+            + "is not on the default PATH, so your shell may not find it.\n\n"
+            + "Add this line to your shell profile "
+            + "(~/.zshrc):\n\n    \(line)\n\n"
+            + "Until then the full path works:  \(path) help"
         alert.addButton(withTitle: "Copy the line")
         alert.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true)
@@ -132,26 +140,33 @@ extension AppDelegate {
                 p.alignment = .center
                 p.lineSpacing = 2
                 return p
-            }()]
-        credits.append(NSAttributedString(
-            string: "A desktop pet that reacts to your coding agent.\n"
-                  + "Drawn in code — no image assets.\n\n",
-            attributes: body))
+            }(),
+        ]
+        credits.append(
+            NSAttributedString(
+                string: "A desktop pet that reacts to your coding agent.\n"
+                    + "Drawn in code — no image assets.\n\n",
+                attributes: body))
 
         let currentArt = view.sprite.map { "\($0.name) — \($0.rows) row atlas" } ?? view.skin.name
-        credits.append(NSAttributedString(string: "Currently wearing \(currentArt).\n",
-                                          attributes: body))
+        credits.append(
+            NSAttributedString(
+                string: "Currently wearing \(currentArt).\n",
+                attributes: body))
 
         let agents = HookHost.all.filter { HookPlugin.isRegistered($0) }.map(\.name)
-        credits.append(NSAttributedString(
-            string: agents.isEmpty ? "No agent is driving it yet.\n\n"
-                                   : "Driven by \(agents.joined(separator: ", ")).\n\n",
-            attributes: body))
+        credits.append(
+            NSAttributedString(
+                string: agents.isEmpty
+                    ? "No agent is driving it yet.\n\n"
+                    : "Driven by \(agents.joined(separator: ", ")).\n\n",
+                attributes: body))
 
         let link = NSMutableAttributedString(
             string: "github.com/ryccoatika/PetProject",
-            attributes: body.merging([.link: URL(string: "https://github.com/ryccoatika/PetProject")!])
-                { _, new in new })
+            attributes: body.merging([
+                .link: URL(string: "https://github.com/ryccoatika/PetProject")!
+            ]) { _, new in new })
         credits.append(link)
 
         NSApp.activate(ignoringOtherApps: true)
@@ -184,8 +199,9 @@ extension AppDelegate {
         // This menu was the only way back, so say how to return.
         let alert = NSAlert()
         alert.messageText = "Menu bar icon hidden"
-        alert.informativeText = "The pet keeps running. To bring the icon back, "
-                              + "run this in Terminal:\n\n    pet tray show"
+        alert.informativeText =
+            "The pet keeps running. To bring the icon back, "
+            + "run this in Terminal:\n\n    pet tray show"
         alert.alertStyle = .informational
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()

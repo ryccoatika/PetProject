@@ -34,7 +34,7 @@ private func runRenderer(_ name: String, _ rest: [String]) -> Bool {
 if let first = arguments.first {
     let renderers = ["render", "icon", "dmgbg", "--render", "--icon", "--dmgbg"]
     if renderers.contains(first) {
-        _ = NSApplication.shared                    // renderers need AppKit up
+        _ = NSApplication.shared  // renderers need AppKit up
         let name = first.hasPrefix("--") ? String(first.dropFirst(2)) : first
         if runRenderer(name, Array(arguments.dropFirst())) { exit(0) }
         exit(1)

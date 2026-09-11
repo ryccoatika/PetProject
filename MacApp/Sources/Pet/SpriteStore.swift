@@ -6,11 +6,14 @@
 import Cocoa
 
 enum SpriteStore {
-    static var directory: URL { SkinStore.configDir.appendingPathComponent("pets", isDirectory: true) }
+    static var directory: URL {
+        SkinStore.configDir.appendingPathComponent("pets", isDirectory: true)
+    }
 
     static func folders() -> [URL] {
-        let found = (try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil)) ?? []
+        let found =
+            (try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil)) ?? []
         return found.filter {
             FileManager.default.fileExists(atPath: $0.appendingPathComponent("pet.json").path)
         }.sorted { $0.lastPathComponent < $1.lastPathComponent }

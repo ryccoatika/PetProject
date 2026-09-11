@@ -14,12 +14,15 @@ extension CLI {
         let current = Prefs.store.string(forKey: "petSkin") ?? "tabby"
         let result = SkinStore.load()
         for skin in result.skins {
-            print("\(skin.id == current ? " * " : "   ")\(skin.id.padding(toLength: max(10, skin.id.count + 1), withPad: " ", startingAt: 0))\(skin.name)")
+            print(
+                "\(skin.id == current ? " * " : "   ")\(skin.id.padding(toLength: max(10, skin.id.count + 1), withPad: " ", startingAt: 0))\(skin.name)"
+            )
         }
         for pet in SpriteStore.load() {
-            print("\(pet.id == current ? " * " : "   ")"
-                + "\(pet.id.padding(toLength: max(10, pet.id.count + 1), withPad: " ", startingAt: 0))"
-                + "\(pet.name)   (sprite)")
+            print(
+                "\(pet.id == current ? " * " : "   ")"
+                    + "\(pet.id.padding(toLength: max(10, pet.id.count + 1), withPad: " ", startingAt: 0))"
+                    + "\(pet.name)   (sprite)")
         }
         for error in result.errors { print("  !  \(error)") }
     }
@@ -40,8 +43,9 @@ extension CLI {
             for pet in installed {
                 let mark = pet.id == current ? " * " : "   "
                 let rows = pet.frameCounts.prefix(9).map(String.init).joined(separator: ",")
-                print("\(mark)\(pet.id.padding(toLength: max(20, pet.id.count + 1), withPad: " ", startingAt: 0))"
-                    + "\(pet.name)   [\(pet.rows) rows, frames \(rows)]")
+                print(
+                    "\(mark)\(pet.id.padding(toLength: max(20, pet.id.count + 1), withPad: " ", startingAt: 0))"
+                        + "\(pet.name)   [\(pet.rows) rows, frames \(rows)]")
             }
             print("")
             print("folder: \(tilde(SpriteStore.directory))")
@@ -57,7 +61,8 @@ extension CLI {
             // A pack installed from a local folder keeps that folder's name,
             // which need not match the id inside its pet.json — accept either.
             let byFolder = SpriteStore.directory.appendingPathComponent(name)
-            let pack = FileManager.default.fileExists(atPath: byFolder.path)
+            let pack =
+                FileManager.default.fileExists(atPath: byFolder.path)
                 ? SpritePet(folder: byFolder).map { (folder: byFolder, id: $0.id) }
                 : SpriteStore.load().first { $0.id == name }.map { (folder: $0.folder, id: $0.id) }
             guard let pack else { fail("no sprite pet \"\(name)\" installed") }
@@ -82,8 +87,9 @@ extension CLI {
         }
         do {
             let pet = try SpriteInstaller.install(source)
-            print("installed \(pet.name) (\(pet.id)) — \(pet.rows) rows, "
-                + "\(Int(pet.cell.width))x\(Int(pet.cell.height)) frames")
+            print(
+                "installed \(pet.name) (\(pet.id)) — \(pet.rows) rows, "
+                    + "\(Int(pet.cell.width))x\(Int(pet.cell.height)) frames")
             print("use it with: pet skin \(pet.id)")
         } catch {
             fail(error.localizedDescription)
@@ -95,8 +101,9 @@ extension CLI {
         let skins = SkinStore.load().skins
         let spriteIDs = SpriteStore.load().map(\.id)
         guard skins.contains(where: { $0.id == id }) || spriteIDs.contains(id) else {
-            fail("no skin \"\(id)\" — available: "
-                 + (skins.map(\.id) + spriteIDs).joined(separator: ", "))
+            fail(
+                "no skin \"\(id)\" — available: "
+                    + (skins.map(\.id) + spriteIDs).joined(separator: ", "))
         }
         Prefs.store.set(id, forKey: "petSkin")
         Prefs.store.synchronize()
@@ -109,15 +116,18 @@ extension CLI {
     static func config(_ args: [String]) {
         switch args.first {
         case nil:
-            let source = SkinStore.configDirIsFromEnvironment ? "$PET_CONFIG_DIR"
-                       : SkinStore.isCustomConfigDir ? "set with `pet config set`" : "default"
+            let source =
+                SkinStore.configDirIsFromEnvironment
+                ? "$PET_CONFIG_DIR"
+                : SkinStore.isCustomConfigDir ? "set with `pet config set`" : "default"
             print("config dir : \(tilde(SkinStore.configDir))   (\(source))")
             print("skins dir  : \(tilde(SkinStore.userDir))")
         case "set":
             guard args.count > 1 else { fail("usage: pet config set <path>") }
             let url = SkinStore.expand(args[1]).standardizedFileURL
-            do { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
-            catch { fail("cannot create \(url.path): \(error.localizedDescription)") }
+            do {
+                try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            } catch { fail("cannot create \(url.path): \(error.localizedDescription)") }
             SkinStore.setConfigDir(url)
             Prefs.store.synchronize()
             SkinStore.seedIfEmpty()

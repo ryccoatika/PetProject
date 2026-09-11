@@ -33,7 +33,8 @@ enum SpriteInstaller {
             return nil
         }
         if text.lowercased().hasPrefix("http") || text.contains("/") {
-            let parts = text
+            let parts =
+                text
                 .replacingOccurrences(of: "#", with: "/")
                 .split(separator: "/")
                 .map(String.init)
@@ -50,8 +51,9 @@ enum SpriteInstaller {
     }
 
     private static func clean(_ id: String) -> String? {
-        let allowed = CharacterSet(charactersIn:
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+        let allowed = CharacterSet(
+            charactersIn:
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
         let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.rangeOfCharacter(from: allowed.inverted) == nil else {
             return nil
@@ -64,14 +66,15 @@ enum SpriteInstaller {
         let text = source.trimmingCharacters(in: .whitespacesAndNewlines)
         // a direct link to an archive is used as given, wherever it is hosted
         if text.lowercased().hasPrefix("http"), text.lowercased().hasSuffix(".zip"),
-           let url = URL(string: text) {
+            let url = URL(string: text)
+        {
             let name = url.deletingPathExtension().lastPathComponent
                 .replacingOccurrences(of: ".codex-pet", with: "")
             guard let id = clean(name) else { return nil }
             return (url, id)
         }
         guard let id = petID(from: text),
-              let url = URL(string: "https://codex-pets.net/api/pets/\(id)/download")
+            let url = URL(string: "https://codex-pets.net/api/pets/\(id)/download")
         else { return nil }
         return (url, id)
     }
@@ -97,18 +100,21 @@ enum SpriteInstaller {
             _ = fm.fileExists(atPath: local.path, isDirectory: &isDir)
             let id = local.deletingPathExtension().lastPathComponent
                 .replacingOccurrences(of: ".codex-pet", with: "")
-            return isDir.boolValue ? try copyFolder(local, id: id)
-                                   : try unpack(zip: local, id: id)
+            return isDir.boolValue
+                ? try copyFolder(local, id: id)
+                : try unpack(zip: local, id: id)
         }
 
         guard let remote = remoteSource(text) else {
-            throw Failure(message: "\"\(text)\" is not a pet id, a codex-pets.net link, "
-                                 + "or a file on disk")
+            throw Failure(
+                message: "\"\(text)\" is not a pet id, a codex-pets.net link, "
+                    + "or a file on disk")
         }
         let (url, id) = remote
         guard let data = try? Data(contentsOf: url), !data.isEmpty else {
-            throw Failure(message: "could not download \(url.absoluteString) — check the id "
-                                 + "and your connection")
+            throw Failure(
+                message: "could not download \(url.absoluteString) — check the id "
+                    + "and your connection")
         }
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("\(id).codex-pet.zip")
@@ -132,8 +138,9 @@ enum SpriteInstaller {
     private static func copyFolder(_ folder: URL, id: String) throws -> SpritePet {
         let dest = SpriteStore.directory.appendingPathComponent(id)
         try? FileManager.default.removeItem(at: dest)
-        do { try FileManager.default.copyItem(at: folder, to: dest) }
-        catch { throw Failure(message: "could not copy \(folder.path): \(error.localizedDescription)") }
+        do { try FileManager.default.copyItem(at: folder, to: dest) } catch {
+            throw Failure(message: "could not copy \(folder.path): \(error.localizedDescription)")
+        }
         return try finish(dest)
     }
 
@@ -141,19 +148,25 @@ enum SpriteInstaller {
     private static func finish(_ dest: URL) throws -> SpritePet {
         let fm = FileManager.default
         if !fm.fileExists(atPath: dest.appendingPathComponent("pet.json").path) {
-            let inner = ((try? fm.contentsOfDirectory(at: dest, includingPropertiesForKeys: nil)) ?? [])
+            let inner =
+                ((try? fm.contentsOfDirectory(at: dest, includingPropertiesForKeys: nil)) ?? [])
                 .first { fm.fileExists(atPath: $0.appendingPathComponent("pet.json").path) }
             if let inner {
-                for file in (try? fm.contentsOfDirectory(at: inner, includingPropertiesForKeys: nil)) ?? [] {
-                    try? fm.moveItem(at: file, to: dest.appendingPathComponent(file.lastPathComponent))
+                for file
+                    in (try? fm.contentsOfDirectory(at: inner, includingPropertiesForKeys: nil))
+                    ?? []
+                {
+                    try? fm.moveItem(
+                        at: file, to: dest.appendingPathComponent(file.lastPathComponent))
                 }
                 try? fm.removeItem(at: inner)
             }
         }
         guard let pet = SpritePet(folder: dest) else {
             try? fm.removeItem(at: dest)
-            throw Failure(message: "that does not look like a pet pack "
-                                 + "(it needs pet.json and a spritesheet)")
+            throw Failure(
+                message: "that does not look like a pet pack "
+                    + "(it needs pet.json and a spritesheet)")
         }
         return pet
     }
