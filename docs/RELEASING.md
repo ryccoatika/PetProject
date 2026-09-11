@@ -36,6 +36,7 @@ positions. Build it locally if you want the arranged version attached instead.
 The skip keys off `CI`. Set `PET_DMG_LAYOUT=1` to lay the window out anyway, or
 `PET_DMG_LAYOUT=0` to skip it on your own machine.
 
-The app is signed ad-hoc, not notarised, so first launch needs right-click →
-Open. Notarising would need a paid Apple Developer ID and the certificate in
-repository secrets.
+The app is signed ad-hoc, not notarised, so the first launch of a downloaded
+build needs System Settings → Privacy & Security → Open Anyway. Right-click →
+Open stopped working for this in macOS 15. Notarising would need a paid Apple
+Developer ID and the certificate in repository secrets.

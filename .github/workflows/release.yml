@@ -46,6 +46,28 @@ jobs:
             echo "CHANGELOG.md has no section for ${{ steps.version.outputs.version }}"
             exit 1
           fi
+
+          # Every download hits this, so it belongs on the release page rather
+          # than only in the README.
+          cat >> RELEASE_NOTES.md <<'INSTALL'
+
+          ## Installing
+
+          Open the disk image and drag **Pet.app** into Applications.
+
+          The app is signed ad-hoc rather than notarised, so macOS blocks the
+          first launch: *"Apple could not verify Pet is free of malware"*. Open
+          **System Settings → Privacy & Security**, scroll to the bottom and
+          click **Open Anyway**. Right-click → Open does not work for this on
+          macOS 15 and later. The same thing in one line:
+
+          ```
+          xattr -dr com.apple.quarantine /Applications/Pet.app
+          ```
+
+          You only do this once. Building from source skips it entirely.
+          INSTALL
+
           cat RELEASE_NOTES.md
 
       - name: Build the disk image

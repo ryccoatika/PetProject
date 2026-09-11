@@ -91,9 +91,15 @@ command is and offers to copy the line for `~/.zshrc`. `pet status` and the
 runtime file report the same thing as `cli=ok` or `cli=needs-path`.
 
 The one rough edge is Gatekeeper. The app is ad-hoc signed, not notarised, and
-a disk image cannot clear its own quarantine, so the first launch needs
-right-click → Open (or Open Anyway in System Settings → Privacy & Security).
-Notarising with a paid Apple Developer ID is the only way to remove that step.
+a disk image cannot clear its own quarantine, so macOS refuses the first launch
+of a downloaded build. Since macOS 15 the right-click → Open bypass is gone —
+the warning offers only Move to Trash and Done — and the way through is System
+Settings → Privacy & Security → **Open Anyway**, or `xattr -dr
+com.apple.quarantine /Applications/Pet.app`.
+
+A build you compiled yourself is never quarantined, so this only affects people
+installing from a release. Notarising with a paid Apple Developer ID is the
+only way to remove the step for them.
 
 
 ## App icon

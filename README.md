@@ -32,9 +32,20 @@ pet plugin install        # every agent found on this machine
 
 If a [release](https://github.com/ryccoatika/PetProject/releases) is available
 you can instead download the disk image, drag **Pet.app** into Applications and
-open it — it installs the `pet` command on first launch. The app is signed
-ad-hoc rather than notarised, so macOS asks you to confirm the first time:
-right-click → Open. Building it yourself avoids that.
+open it — it installs the `pet` command on first launch.
+
+The app is signed ad-hoc rather than notarised, so macOS blocks the first
+launch with *"Apple could not verify Pet is free of malware"*. Open **System
+Settings → Privacy & Security**, scroll to the bottom and click **Open
+Anyway** — the button appears there for a while after the warning. The
+equivalent in one line:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Pet.app
+```
+
+On macOS 15 and later, right-click → Open no longer works for this; Open
+Anyway is the only way through. Building it yourself avoids the step entirely.
 
 Requires macOS 12 or later, Intel or Apple Silicon. No dependencies — not
 Homebrew, not Python, not a package manager.

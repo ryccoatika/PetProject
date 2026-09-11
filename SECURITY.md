@@ -19,9 +19,10 @@ running. Nothing is sent anywhere, and there is no telemetry.
 
 ## The app is not notarised
 
-Builds are signed ad-hoc, not with an Apple Developer ID. macOS will warn on
-first launch and you may need right-click → Open. If that matters to you, build
-it yourself from source — it takes one command.
+Builds are signed ad-hoc, not with an Apple Developer ID. macOS blocks the
+first launch of a downloaded build; System Settings → Privacy & Security →
+**Open Anyway** lets it through. If that matters to you, build it yourself from
+source — it takes one command, and your own build is never quarantined.
 
 ## Reporting something
 
