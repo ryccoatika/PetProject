@@ -39,6 +39,7 @@ jobs:
           awk -v v="${{ steps.version.outputs.version }}" '
             $0 ~ "^## \\\\[" v "\\\\]" { inside = 1; next }
             inside && /^## \[/ { exit }
+            inside && /^\[[^]]+\]: / { next }   # link definitions live at the bottom
             inside { print }
           ' CHANGELOG.md > RELEASE_NOTES.md
           if [ ! -s RELEASE_NOTES.md ]; then
