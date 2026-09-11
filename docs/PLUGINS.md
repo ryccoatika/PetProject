@@ -1,6 +1,6 @@
-# Desktop Pet — agent plugins
+# Agent plugins
 
-Teaches a coding agent to tell the [Desktop Pet](../MacApp) what it is doing,
+Teaches a coding agent to tell the [the pet](../MacApp) what it is doing,
 so the pet types at its laptop while a tool runs, thinks between steps, raises
 a `!` when it needs you, and celebrates when a turn ends.
 
@@ -138,6 +138,6 @@ producers — a mobile pet would define its own.
 
 ## Adding another agent
 
-`HookHost` in `../MacApp/main.swift` describes an agent: its config files, its
+`HookHost` in `../MacApp/Sources/HookHost.swift` describes an agent: its config files, its
 event names and whether each takes a matcher. Adding one is a new static
 property plus an entry in `HookHost.all`.
