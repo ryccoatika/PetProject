@@ -33,7 +33,7 @@ DEPLOY_TARGET=12.0
 for arch in arm64 x86_64; do
     swiftc -swift-version 5 -O \
         -target "$arch-apple-macos$DEPLOY_TARGET" \
-        -o "$BUILD/pet-$arch" main.swift "$BUILD/DefaultSkins.swift"
+        -o "$BUILD/pet-$arch" main.swift Sources/*.swift "$BUILD/DefaultSkins.swift"
 done
 lipo -create -output "$BUILD/pet" "$BUILD/pet-arm64" "$BUILD/pet-x86_64"
 rm -f "$BUILD/pet-arm64" "$BUILD/pet-x86_64"

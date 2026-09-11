@@ -8,6 +8,41 @@ A macOS desktop pet that reacts to Claude Code. A transparent, always-on-top
 window draws an animated creature that changes pose based on what Claude is
 doing. All artwork is vector-drawn in code — no image assets.
 
+## Code layout
+
+One Swift module, no dependencies. `main.swift` only decides what to run;
+everything else lives in `Sources/`, one concern per file.
+
+    main.swift                  entry point: CLI, a render, or the app
+
+    Sources/
+      Pose.swift                what the pet is doing
+      Preferences.swift         the preference domain shared with the CLI
+      Skin.swift                a drawn skin: palette and traits
+      SkinStore.swift           finding, seeding and validating skins
+      SpritePet.swift           a codex-pets.net pack: atlas slicing, drawing
+      SpriteStore.swift         where packs live
+      SpriteInstaller.swift     installing packs from id, URL, folder or zip
+      HookHost.swift            the agents, their events and config files
+      HookPlugin.swift          registering and removing hooks
+      OpencodePlugin.swift      the JavaScript plugin opencode loads
+      PetView.swift             view state, dragging, draw entry points
+      PetView+Art.swift         how each pose is drawn
+      Renderers.swift           icon, disk image background, contact sheets
+      AppDelegate.swift         lifecycle, window, shared state
+      AppDelegate+Menu.swift    building the menu bar
+      AppDelegate+Art.swift     choosing, importing, exporting skins
+      AppDelegate+Plugins.swift agent plugins from the menu
+      AppDelegate+Tools.swift   the `pet` command, menu bar icon, visibility
+      AppDelegate+Loop.swift    loop rate, placement, activity, each step
+      CLI.swift                 dispatch, help, the hook event entry point
+      CLI+App.swift             status, start/stop, show/hide, tray
+      CLI+Skins.swift           skins, packs, config folder
+      CLI+Plugin.swift          agent plugins, uninstall
+
+`build.sh` compiles `main.swift Sources/*.swift` plus the generated
+`DefaultSkins.swift`, so a new file needs no build change.
+
 ## Build
 
     ./build.sh
