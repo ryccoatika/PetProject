@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
   pull_request:
+    branches: [develop, main]
 
 jobs:
   build:
@@ -27,6 +28,18 @@ jobs:
           lipo -info build/Pet.app/Contents/MacOS/Pet | grep -q 'x86_64 arm64'
           # one LC_BUILD_VERSION per slice, both targeting macOS 12
           test "$(otool -l build/Pet.app/Contents/MacOS/Pet | grep -c 'minos 12.0')" -eq 2
+
+      - name: The generated skins file is up to date
+        working-directory: MacApp
+        run: |
+          git diff --exit-code Sources/Pet/DefaultSkins.swift \
+            || { echo "Sources/Pet/DefaultSkins.swift is stale — run ./build.sh and commit it"; exit 1; }
+
+      - name: The bundle carries the version from VERSION
+        working-directory: MacApp
+        run: |
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            build/Pet.app/Contents/Info.plist | grep -qx "$(cat ../VERSION)"
 
       - name: The CLI answers
         working-directory: MacApp

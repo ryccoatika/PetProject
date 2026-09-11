@@ -13,9 +13,10 @@ doing. All artwork is vector-drawn in code — no image assets.
 One Swift module, no dependencies. `main.swift` only decides what to run;
 everything else lives in `Sources/`, one concern per file.
 
-    main.swift                  entry point: CLI, a render, or the app
+    Package.swift               open this in Xcode
+    main.swift → Sources/Pet/main.swift
 
-    Sources/
+    Sources/Pet/
       Pose.swift                what the pet is doing
       Preferences.swift         the preference domain shared with the CLI
       Skin.swift                a drawn skin: palette and traits
@@ -40,8 +41,9 @@ everything else lives in `Sources/`, one concern per file.
       CLI+Skins.swift           skins, packs, config folder
       CLI+Plugin.swift          agent plugins, uninstall
 
-`build.sh` compiles `main.swift Sources/*.swift` plus the generated
-`DefaultSkins.swift`, so a new file needs no build change.
+`build.sh` compiles `Sources/Pet/*.swift`, so a new file needs no build change.
+It regenerates `Sources/Pet/DefaultSkins.swift` from `Skins/`, which is
+committed so `swift build` needs no code generation step.
 
 ## Build
 

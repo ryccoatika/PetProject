@@ -12,9 +12,29 @@ cd PetProject/MacApp
 ```
 
 You need macOS 12 or later and the Xcode command line tools (`xcode-select
---install`). Nothing else — no Homebrew, no package manager, no Xcode project.
+--install`). Nothing else — no Homebrew, no package manager.
 
 `./build.sh --no-install` builds without touching your installed copy.
+
+### Working in Xcode
+
+There is no `.xcodeproj` — a binary project file conflicts in every pull
+request and would force everyone to install full Xcode. Instead there is a
+Swift package, which Xcode opens natively:
+
+```sh
+open MacApp/Package.swift
+```
+
+That gives you indexing, jump-to-definition, breakpoints and Instruments, and
+`swift build` works from the terminal. It builds the *binary*; the `.app`
+bundle — Info.plist, icon, skins, signature — is assembled by `./build.sh`,
+which is what you run to actually see the pet.
+
+`Sources/Pet/DefaultSkins.swift` is generated from `Skins/*.petskin` by
+`build.sh` and committed, so the package builds without a code generation
+step. If you change a shipped skin, run `./build.sh` and commit the result —
+CI checks it is not stale.
 
 Start with [Architecture](docs/ARCHITECTURE.md); it explains how the agent
 hooks, the state file, the loop and the drawing fit together.
@@ -70,15 +90,24 @@ If you touch anything that edits an agent's config, test it against a file that
 already contains somebody else's hooks, and confirm they survive both install
 and uninstall. That is the failure mode that matters most here.
 
+## Branches
+
+- **`develop`** is where work lands. Branch from it, and open your pull request
+  against it. It is the default branch, so GitHub picks it for you.
+- **`main`** is what has been released. Only the maintainer merges `develop`
+  into `main`, and that merge publishes a release.
+
 ## Sending it
 
 ```sh
+git switch develop
+git pull
 git switch -c short-description
 # ... commit ...
 git push -u origin short-description
 ```
 
-Then open a pull request. The template asks what changed, why, and how you
+Then open a pull request **against `develop`**. The template asks what changed, why, and how you
 checked it — the third one is the part reviewers care about most.
 
 Commit messages: a short imperative summary line, then a blank line, then the

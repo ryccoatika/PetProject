@@ -1,3 +1,6 @@
+<!-- Open this against `develop`. Pull requests into `main` are release merges
+     and are made by the maintainer. -->
+
 ### What does this change?
 
 <!-- One or two sentences. What is different after this is merged? -->
@@ -25,3 +28,5 @@
 - [ ] I looked at the pet afterwards, not only at the build output
 - [ ] If I changed hook registration, another tool's hooks survive install and uninstall
 - [ ] Docs updated if behaviour changed
+- [ ] `CHANGELOG.md` updated under `## [Unreleased]` if this is user-visible
+- [ ] Targeted at `develop`

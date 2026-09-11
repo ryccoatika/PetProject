@@ -1,0 +1,71 @@
+name: Release
+
+# A merge into main publishes, but only when VERSION names something new.
+# Bump VERSION and move the CHANGELOG entries out of Unreleased in the same
+# pull request; merging it cuts the release.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag, build and publish
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read the version
+        id: version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "already released: v$VERSION"
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Take the notes for this version out of the changelog
+        if: steps.version.outputs.fresh == 'true'
+        run: |
+          awk -v v="${{ steps.version.outputs.version }}" '
+            $0 ~ "^## \\\\[" v "\\\\]" { inside = 1; next }
+            inside && /^## \[/ { exit }
+            inside { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "CHANGELOG.md has no section for ${{ steps.version.outputs.version }}"
+            exit 1
+          fi
+          cat RELEASE_NOTES.md
+
+      - name: Build the disk image
+        if: steps.version.outputs.fresh == 'true'
+        working-directory: MacApp
+        run: ./dmg.sh
+
+      - name: Publish
+        if: steps.version.outputs.fresh == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --notes-file RELEASE_NOTES.md \
+            "MacApp/build/DesktopPet-$VERSION.dmg"
+
+      - name: Keep the disk image on the run as well
+        if: steps.version.outputs.fresh == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DesktopPet-${{ steps.version.outputs.version }}
+          path: MacApp/build/*.dmg

@@ -68,6 +68,8 @@ pet help            # everything else
 | [Skins](docs/SKINS.md) | the `.petskin` format and sprite packs |
 | [Agent plugins](docs/PLUGINS.md) | how each agent drives the pet |
 | [Contributing](CONTRIBUTING.md) | building, testing, sending a change |
+| [Releasing](docs/RELEASING.md) | for maintainers |
+| [Changelog](CHANGELOG.md) | what changed, by version |
 
 ## Project layout
 

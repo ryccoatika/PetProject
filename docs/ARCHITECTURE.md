@@ -161,8 +161,9 @@ stored.
 
 ```
 MacApp/
-  main.swift                  entry point: CLI, a render, or the app
-  Sources/
+  Package.swift               so Xcode and `swift build` work
+  Sources/Pet/
+    main.swift                entry point: CLI, a render, or the app
     Pose, Preferences         small shared types
     Skin, SkinStore           drawn skins: the format, finding and seeding them
     SpritePet, SpriteStore, SpriteInstaller    codex-pets packs
@@ -177,6 +178,7 @@ MacApp/
   dmg.sh                      build the disk image to share
 ```
 
-`build.sh` compiles `main.swift Sources/*.swift`, so a new file needs no build
-change. It also generates `DefaultSkins.swift` from `Skins/*.petskin`, which is
-why an app with no skins folder still has its four.
+`build.sh` compiles `Sources/Pet/*.swift`, so a new file needs no build change.
+It also regenerates `Sources/Pet/DefaultSkins.swift` from `Skins/*.petskin` —
+committed, so the Swift package builds without a code generation step, and why
+an app with no skins folder still has its four.
