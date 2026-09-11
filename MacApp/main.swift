@@ -412,9 +412,14 @@ final class SpritePet {
                             y: image.size.height - CGFloat(row + 1) * cell.height,
                             width: cell.width, height: cell.height)
 
-        let scale = min(rect.width / cell.width, rect.height / cell.height)
-        let size = NSSize(width: cell.width * scale, height: cell.height * scale)
-        let target = NSRect(x: rect.midX - size.width / 2, y: rect.minY,
+        // Snap to 1:1 when the cell nearly fits: an unscaled blit is far
+        // cheaper than resampling every frame, and pixel art looks better for
+        // it too.
+        var scale = min(rect.width / cell.width, rect.height / cell.height)
+        if scale > 0.92 && scale < 1.08 { scale = 1 }
+        let size = NSSize(width: (cell.width * scale).rounded(),
+                          height: (cell.height * scale).rounded())
+        let target = NSRect(x: (rect.midX - size.width / 2).rounded(), y: rect.minY.rounded(),
                             width: size.width, height: size.height)
 
         NSGraphicsContext.saveGraphicsState()
@@ -426,7 +431,7 @@ final class SpritePet {
         }
         if let cropped = cellImage(row: row, column: column),
            let context = NSGraphicsContext.current?.cgContext {
-            context.interpolationQuality = .high
+            context.interpolationQuality = scale == 1 ? .none : .medium
             context.draw(cropped, in: target)
         } else {
             image.draw(in: target, from: source, operation: .sourceOver, fraction: 1,
@@ -435,8 +440,14 @@ final class SpritePet {
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    /// Cells are cropped once and kept; redrawing the whole sheet every frame
-    /// is far too expensive at 30fps.
+    /// Each cell is baked into its own small bitmap the first time it is
+    /// drawn.
+    ///
+    /// Cropping alone is not enough: a cropped CGImage is only a window onto
+    /// the parent's data provider, so every draw re-locks the whole
+    /// 1536x2288 sheet — which profiling showed as CGSImageDataLock eating
+    /// most of the frame. Copying the cell into a standalone buffer turns
+    /// each draw into a plain blit.
     private func cellImage(row: Int, column: Int) -> CGImage? {
         let key = row * 100 + column
         if let cached = cells[key] { return cached }
@@ -444,8 +455,21 @@ final class SpritePet {
         let rect = CGRect(x: CGFloat(column) * cell.width, y: CGFloat(row) * cell.height,
                           width: cell.width, height: cell.height)
         guard let cropped = sheet.cropping(to: rect) else { return nil }
-        cells[key] = cropped
-        return cropped
+
+        let width = Int(cell.width), height = Int(cell.height)
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else {
+            cells[key] = cropped
+            return cropped
+        }
+        context.interpolationQuality = .high
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let baked = context.makeImage() ?? cropped
+        cells[key] = baked
+        return baked
     }
 }
 
@@ -2241,7 +2265,12 @@ if petArgs.first == "render" || CommandLine.arguments.contains("--render") {
 // MARK: - App
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    let size = NSSize(width: 200, height: 210)
+    /// The drawn art needs a small window; a sprite cell wants 210x240 so it
+    /// can be blitted 1:1. Rasterising the drawn pet into the larger window
+    /// costs measurably more, so the window follows the art.
+    static let vectorSize = NSSize(width: 170, height: 165)
+    static let spriteSize = NSSize(width: 210, height: 240)
+    var size = AppDelegate.vectorSize
     var window: NSWindow!
     var view: PetView!
     var statusItem: NSStatusItem?
@@ -2261,6 +2290,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var isActive = false               // Claude is thinking / running a tool
     var lastTrack: SpritePet.Track = .idle
     var lastSpriteSignature = ""
+    var lastMouseMove = Date.distantPast
+    var lastMousePoint = CGPoint.zero
     var hidden = false                 // pet hidden from screen via the menu
     var skins: [Skin] = []
     var sprites: [SpritePet] = []
@@ -2276,7 +2307,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var savedPos = CGPoint.zero        // last position written to preferences
     var blinkTimer = 60
     var tick = 0
-    let fps: Double = 30
+    /// The loop runs fast only when something is actually moving.
+    let fps: Double = 30                 // animation reference rate
+    var currentFPS: Double = 0
+    /// Scales per-tick animation so it looks the same at any loop rate.
+    var tickScale: Double { fps / max(currentFPS, 1) }
+    var sinceStateRead: Double = 0
+    var sinceSave: Double = 0
+    var sinceSpriteFrame: Double = 0
 
     func applicationDidFinishLaunching(_ n: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -2308,6 +2346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let f = (NSScreen.main ?? NSScreen.screens[0]).visibleFrame
             pos = CGPoint(x: f.midX, y: f.midY - size.height / 2)   // centre on first run
         }
+        applyWindowSize()
         pos = clampToScreen(pos)
         savePos(force: true)
         view.dragBegin = { [weak self] in self?.dragging = true }
@@ -2329,8 +2368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             name: Notification.Name(Prefs.reloadNotification), object: nil)
         writeRuntime()
 
-        timer = Timer.scheduledTimer(withTimeInterval: 1 / fps, repeats: true) { [weak self] _ in self?.step() }
-        RunLoop.main.add(timer!, forMode: .common)
+        setLoopRate(fps)
     }
 
     // MARK: menu
@@ -2658,6 +2696,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let pet = sprites.first(where: { $0.id == id }) {
             view.sprite = pet
             view.spriteFrame = 0
+            applyWindowSize()
             Prefs.store.set(id, forKey: "petSkin")
             flash(pet.name.lowercased())
             view.needsDisplay = true
@@ -2675,6 +2714,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func apply(_ sk: Skin) {
         view.sprite = nil
         view.skin = sk
+        applyWindowSize()
         defer { writeRuntime() }
         Prefs.store.set(sk.id, forKey: "petSkin")
         flash(sk.name.lowercased())
@@ -2839,6 +2879,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func quit() { NSApp.terminate(nil) }
 
     /// What the running app is actually doing, for `pet status`.
+    /// Rebuild the timer at a new rate. Tolerance lets the system coalesce
+    /// these wakeups with others instead of waking the CPU on its own.
+    func setLoopRate(_ rate: Double) {
+        guard rate != currentFPS else { return }
+        currentFPS = rate
+        timer?.invalidate()
+        let t = Timer(timeInterval: 1 / rate, repeats: true) { [weak self] _ in self?.step() }
+        t.tolerance = (1 / rate) * 0.15
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    /// 30fps while moving or reacting, 10 while idling, 2 while hidden.
+    func desiredLoopRate() -> Double {
+        if hidden { return 2 }
+        // Motion is what the eye catches, so only movement gets the full rate.
+        if dragging || view.held || view.pose == .running { return 30 }
+        if isActive { return 20 }          // typing, thinking, alerting
+        // chasing: wake up while the cursor is actually moving, so the pet
+        // starts after it without a visible delay
+        if chaseWhenIdle, Date().timeIntervalSince(lastMouseMove) < 0.6 { return 30 }
+        if view.pose == .sleeping { return 3 }
+        return 6
+    }
+
     func writeRuntime() {
         let dir = SkinStore.configDir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -2905,6 +2970,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Moving a window is a trip to the window server; skip it when the pet
     /// has not actually moved.
+    /// Resize the window to suit the current art, keeping the pet in place.
+    func applyWindowSize() {
+        let wanted = view.sprite == nil ? AppDelegate.vectorSize : AppDelegate.spriteSize
+        guard wanted != size else { return }
+        size = wanted
+        window.setContentSize(wanted)
+        view.frame = NSRect(origin: .zero, size: wanted)
+        placedAt = CGPoint(x: CGFloat.infinity, y: CGFloat.infinity)   // force a reposition
+        place()
+        view.needsDisplay = true
+    }
+
     func place() {
         guard abs(pos.x - placedAt.x) > 0.5 || abs(pos.y - placedAt.y) > 0.5 else { return }
         placedAt = pos
@@ -2933,7 +3010,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         func idlePose() {
             view.label = nil
-            if quiet > 25 { view.pose = .sleeping; view.zPhase += 0.006 }
+            if quiet > 25 { view.pose = .sleeping; view.zPhase += 0.006 * tickScale }
             else if quiet > 10 && Int(quiet) % 6 < 2 { view.pose = .grooming }
             else { view.pose = .sitting }
         }
@@ -2961,8 +3038,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let frames = sprite.frames(in: track)
         guard frames > 1 else { view.spriteFrame = 0; return }
         // idle and sleep breathe slowly; movement and reactions run quicker
-        let perFrame = view.pose == .sleeping ? 14 : (isActive || view.pose == .running ? 4 : 8)
-        if tick % perFrame == 0 {
+        let interval = view.pose == .sleeping ? 0.47
+                     : (isActive || view.pose == .running ? 0.13 : 0.27)
+        sinceSpriteFrame += 1 / max(currentFPS, 1)
+        if sinceSpriteFrame >= interval {
+            sinceSpriteFrame = 0
             view.spriteFrame = (view.spriteFrame + 1) % frames
         }
         if track != lastTrack {
@@ -2976,14 +3056,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func step() {
         tick += 1
 
+        let dt = 1 / max(currentFPS, 1)
+        sinceStateRead += dt
+
         if hidden {                      // still follow Claude so the menu stays useful
-            if tick % 3 == 0 { readState() } else { eventAge += 1 / fps }
+            if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
             updatePose()
             isActive = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
+            setLoopRate(desiredLoopRate())
             return
         }
 
         let mouseNow = NSEvent.mouseLocation
+        if hypot(mouseNow.x - lastMousePoint.x, mouseNow.y - lastMousePoint.y) > 2 {
+            lastMousePoint = mouseNow
+            lastMouseMove = Date()
+        }
 
         // Per-pixel click-through: the window takes the mouse whenever the
         // cursor is over the cat itself, so it can always be grabbed or
@@ -3002,14 +3090,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        if tick % 3 == 0 { readState() } else { eventAge += 1 / fps }
+        if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
         updatePose()
 
         let active = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
         isActive = active
         advanceSprite()
         if Date() < flashUntil { view.label = flashText }
-        view.phase += active ? 0.3 : 0.07
+        view.phase += (active ? 0.3 : 0.07) * tickScale
         view.hop = view.pose == .celebrate ? abs(sin(view.phase * 1.9)) * 16 : 0
 
         // The pet has no home: it stays wherever it was last left, and only
@@ -3022,12 +3110,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let dx = target.x - pos.x, dy = target.y - pos.y, dist = hypot(dx, dy)
         if dist > 2 {
-            let speed = min(3 + dist * 0.07, 11)
+            let speed = min(3 + dist * 0.07, 11) * tickScale
             pos = CGPoint(x: pos.x + dx / dist * speed, y: pos.y + dy / dist * speed)
             if !active {
                 view.pose = .running
                 view.label = nil
-                view.phase += 0.32
+                view.phase += 0.32 * tickScale
                 if abs(dx) > 2 { view.facingRight = dx > 0 }
             }
         } else if !active {
@@ -3040,7 +3128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let ey = max(-1, min(1, (mouse.y - pos.y - 60) / 130))
         view.eyeOffset = CGPoint(x: ex, y: ey)
 
-        blinkTimer -= 1
+        blinkTimer -= Int(tickScale.rounded())
         if blinkTimer <= 0 {
             view.blink = min(1, view.blink + 0.34)
             if view.blink >= 1 { blinkTimer = Int.random(in: 60...220); view.blink = 0 }
@@ -3048,7 +3136,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         place()
         if view.sprite == nil {
-            view.needsDisplay = true            // vector art animates continuously
+            // The drawn art animates continuously, but when the pet is just
+            // sitting there nobody can tell 10fps from 30fps — and it is the
+            // difference between a few percent of a core and none.
+            view.needsDisplay = true
         } else {
             // sprite frames change every few ticks; redraw only then
             let signature = "\(view.spriteFrame)|\(view.pose)|\(view.held)|"
@@ -3058,7 +3149,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 view.needsDisplay = true
             }
         }
-        if tick % 150 == 0 { savePos() }
+        sinceSave += dt
+        if sinceSave >= 5 { sinceSave = 0; savePos() }
+        setLoopRate(desiredLoopRate())
     }
 }
 

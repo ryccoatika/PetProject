@@ -204,19 +204,40 @@ renders every track of every installed pack for checking.
 
 ### Cost
 
-Three things keep a spritesheet affordable at 30fps: each cell is cropped from
-the sheet once and cached, a sprite is redrawn only when its frame actually
-changes, and the window is only moved when the pet has moved.
+See [Performance](#performance) — a sprite pet is cheaper than the drawn art,
+because it only redraws when its frame changes.
 
-| | CPU |
-|---|---|
-| drawing the whole sheet every frame (first attempt) | 28% |
-| cell caching only | 16% |
-| plus redraw-on-change and skipping idle window moves | **6.5%** |
+## Performance
 
-For comparison the drawn art sits at about 8.6%: it animates continuously, so
-it genuinely redraws every frame, while an idle sprite advances a frame only a
-few times a second.
+The loop rate follows what is happening, because a pet that runs flat out
+while sitting still is just a battery drain:
+
+| State | Rate | CPU |
+|-------|------|-----|
+| hidden | 2fps | 0.1% |
+| asleep | 3fps | 0.7% |
+| idle | 6fps | 1.4% |
+| thinking / typing / alerting | 20fps | 1.6–3.8% |
+| walking, dragging, cursor moving in chase mode | 30fps | — |
+
+Animation is scaled by the loop rate, so the pet moves at the same speed
+whichever rate it is running at.
+
+What the numbers cost to find, in case it is useful later:
+
+- **Sampling beats guessing.** A sprite pet idled at 10% CPU even though it
+  redrew four times a second. `sample` put 221 of 332 busy samples in
+  `CGSImageDataLock` → `CGDataProviderRetainData`: a cropped `CGImage` is only
+  a window onto its parent, so every draw re-locked the whole 1536x2288 sheet.
+  Baking each cell into its own buffer fixed it.
+- **Draw 1:1 where possible.** The sprite window is sized so a 192x208 cell
+  needs no resampling; `draw` snaps to scale 1 when it is within 8% of it.
+- **Window size matters.** The drawn art costs noticeably more in the larger
+  sprite window, so the window resizes to suit whichever art is in use.
+- **Measure the right state.** Early numbers were all wrong because running
+  any shell command fires the hooks, which put the pet in its *working* state
+  at full rate. Idle figures need a stale event written to the state file
+  first.
 
 ## Skins
 
