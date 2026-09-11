@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var sizeMenu = NSMenu()
     var sizeSlider: NSSlider?
     var sizeReadout: NSMenuItem?
+    var sizeResetItem: NSMenuItem?
     let mainMenu = NSMenu()
     var statusRow: NSMenuItem!
     var visItem: NSMenuItem!

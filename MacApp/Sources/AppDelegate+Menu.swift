@@ -117,6 +117,7 @@ extension AppDelegate {
                                keyEquivalent: "")
         reset.target = self
         reset.isEnabled = artScale != 1
+        sizeResetItem = reset
         sizeMenu.addItem(reset)
     }
 
@@ -125,13 +126,15 @@ extension AppDelegate {
     @objc func sizeSliderMoved(_ sender: NSSlider) {
         setArtScale(CGFloat(sender.doubleValue))
         sizeReadout?.title = sizeLabel()
+        // the menu is still open, so this item was built before the drag
+        sizeResetItem?.isEnabled = artScale != 1
     }
 
     @objc func resetSize() {
         setArtScale(1)
         sizeSlider?.doubleValue = 1
         sizeReadout?.title = sizeLabel()
-        buildSizeMenu()
+        sizeResetItem?.isEnabled = false
     }
 
     func refreshMenu() {
