@@ -53,6 +53,8 @@ Unreleased, and merging into `main`.
 ### Changed
 
 - The default menu bar icon is the app icon rather than the 🐈 emoji.
+- The menu is grouped into **Appearance**, **Behaviour** and **Agent Plugin**,
+  with SF Symbol icons, so the top level stays short as features grow.
 
 ## [1.0.0] - 2026-09-12
 

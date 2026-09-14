@@ -46,6 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var pluginMenu = NSMenu()
     var sizeMenu = NSMenu()
     var iconMenu = NSMenu()
+    var appearanceMenu = NSMenu()
+    var behaviorMenu = NSMenu()
     /// A newer release's tag, when the quiet launch check found one.
     var updateAvailable: String?
     /// The About window and its update controls; kept so a second About

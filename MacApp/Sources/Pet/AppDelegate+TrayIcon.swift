@@ -128,6 +128,12 @@ extension AppDelegate {
             keyEquivalent: "")
         custom.target = self
         iconMenu.addItem(custom)
+
+        iconMenu.addItem(.separator())
+        let hide = NSMenuItem(
+            title: "Hide Menu Bar Icon", action: #selector(hideTray), keyEquivalent: "")
+        hide.target = self
+        iconMenu.addItem(hide)
     }
 
     @objc func setTrayIcon(_ item: NSMenuItem) {
