@@ -16,8 +16,15 @@ struct AgentSession {
     /// What the agent is actually doing — the prompt it was given or the
     /// tool call's own words — when the payload offered one.
     let detail: String
+    /// The session's working directory, for click-to-open. May be empty.
+    let cwd: String
 
     var age: TimeInterval { Date().timeIntervalSince1970 - stamp }
+
+    /// True while the session needs the user — a permission or notification.
+    var isWaiting: Bool {
+        (event == "Notification" || event == "PermissionRequest") && age < 1800
+    }
 
     /// What the card should say, or nil when this session has gone quiet.
     /// Needing attention lingers; starting and finishing fade in 5 seconds.
@@ -49,8 +56,8 @@ struct AgentSession {
 enum SessionStore {
     static var dir: URL { SkinStore.configDir.appendingPathComponent("sessions") }
 
-    /// Sessions with something to show, newest first. Files from sessions
-    /// that died long ago are cleaned up on the way through.
+    /// Every live session, newest first. Files from sessions that died long
+    /// ago are cleaned up on the way through.
     static func read() -> [AgentSession] {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path)
         else { return [] }
@@ -61,29 +68,58 @@ enum SessionStore {
             let parts = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 .components(separatedBy: "|")
             guard parts.count >= 3, let ts = TimeInterval(parts[2]) else { continue }
+            let cwd =
+                parts.count > 5
+                ? (Data(base64Encoded: parts[5]).flatMap { String(data: $0, encoding: .utf8) } ?? "")
+                : ""
             let session = AgentSession(
                 id: name, event: parts[0], tool: parts[1], stamp: ts,
                 project: parts.count > 3 ? parts[3] : "",
-                detail: parts.count > 4 ? parts[4] : "")
+                detail: parts.count > 4 ? parts[4] : "", cwd: cwd)
             if session.age > 86_400 {
                 try? FileManager.default.removeItem(at: file)  // ended without a SessionEnd
                 continue
             }
             sessions.append(session)
         }
-        return sessions.filter { $0.activity != nil }.sorted { $0.stamp > $1.stamp }
+        return sessions.sorted { $0.stamp > $1.stamp }
     }
+
+    /// Only the sessions with something worth showing on a card.
+    static func active() -> [AgentSession] { read().filter { $0.activity != nil } }
 }
 
 /// Draws the stack of cards. Index 0 — the newest — sits at the bottom,
 /// nearest the pet.
 final class BubbleView: NSView {
     var sessions: [AgentSession] = [] { didSet { needsDisplay = true } }
+    /// Called with a session's working directory when its card is clicked.
+    var onClick: ((AgentSession) -> Void)?
 
     static let cardHeight: CGFloat = 44
     static let spacing: CGFloat = 6
     static let titleFont = NSFont.boldSystemFont(ofSize: 12)
     static let subtitleFont = NSFont.systemFont(ofSize: 11)
+
+    override func mouseDown(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        let slot = Self.cardHeight + Self.spacing
+        let i = Int(p.y / slot)
+        guard i >= 0, i < sessions.count else { return }
+        // ignore a click that lands in the gap between two cards
+        if p.y - CGFloat(i) * slot > Self.cardHeight { return }
+        onClick?(sessions[i])
+    }
+
+    // a card only wants the click when it can act on it
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        let slot = Self.cardHeight + Self.spacing
+        let i = Int(local.y / slot)
+        guard i >= 0, i < sessions.count, !sessions[i].cwd.isEmpty else { return nil }
+        if local.y - CGFloat(i) * slot > Self.cardHeight { return nil }
+        return self
+    }
 
     static func stackHeight(for count: Int) -> CGFloat {
         count == 0 ? 0 : CGFloat(count) * cardHeight + CGFloat(count - 1) * spacing
@@ -143,11 +179,13 @@ extension AppDelegate {
     /// Re-read the sessions and lay the stack out. Called on a slow tick;
     /// cheap when nothing changed.
     func updateBubbles() {
+        chimeIfNewlyWaiting(liveSessions)
+        refreshBadge(liveSessions)
         guard bubblesEnabled, !hidden else {
             hideBubbles()
             return
         }
-        let sessions = Array(SessionStore.read().prefix(4))
+        let sessions = Array(liveSessions.filter { $0.activity != nil }.prefix(4))
         guard !sessions.isEmpty else {
             hideBubbles()
             return
@@ -199,14 +237,37 @@ extension AppDelegate {
         window.backgroundColor = .clear
         window.hasShadow = true
         window.level = .statusBar
-        window.ignoresMouseEvents = true
+        // clicks land on a card and pass through everywhere else (hitTest)
+        window.ignoresMouseEvents = false
         window.collectionBehavior = [
             .canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle,
         ]
         window.contentView = view
+        view.onClick = { [weak self] session in self?.openSession(session) }
         bubbleView = view
         bubbleWindow = window
         return window
+    }
+
+    /// Open a clicked session's project folder in Finder.
+    func openSession(_ session: AgentSession) {
+        guard !session.cwd.isEmpty else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: session.cwd))
+    }
+
+    /// Chime once when a session first starts waiting for the user. Only
+    /// sessions we have already seen count, so a chime does not fire for
+    /// everything already waiting when the pet launches.
+    func chimeIfNewlyWaiting(_ sessions: [AgentSession]) {
+        let waiting = Set(sessions.filter(\.isWaiting).map(\.id))
+        defer { lastWaitingSessions = waiting }
+        guard chimeEnabled, bubbleWindowSeenOnce else {
+            bubbleWindowSeenOnce = true
+            return
+        }
+        if !waiting.subtracting(lastWaitingSessions).isEmpty {
+            NSSound(named: chimeSoundName)?.play()
+        }
     }
 
     @objc func toggleBubbles() {

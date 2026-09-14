@@ -81,6 +81,20 @@ extension AppDelegate {
         bubbleItem.state = bubblesEnabled ? .on : .off
         mainMenu.addItem(bubbleItem)
 
+        chimeItem = NSMenuItem(
+            title: "Chime When an Agent Needs You",
+            action: #selector(toggleChime), keyEquivalent: "")
+        chimeItem.target = self
+        chimeItem.state = chimeEnabled ? .on : .off
+        mainMenu.addItem(chimeItem)
+
+        let followItem = NSMenuItem(title: "Follow Session", action: nil, keyEquivalent: "")
+        followMenu.delegate = self  // rebuilt from the live sessions each open
+        followMenu.autoenablesItems = false
+        populateFollowMenu()
+        followItem.submenu = followMenu
+        mainMenu.addItem(followItem)
+
         let hint = NSMenuItem(
             title: "Drag to move · double-click to toggle chase",
             action: nil, keyEquivalent: "")
@@ -177,6 +191,7 @@ extension AppDelegate {
         visItem?.title = hidden ? "Show Pet" : "Hide Pet"
         chaseItem?.state = chaseWhenIdle ? .on : .off
         bubbleItem?.state = bubblesEnabled ? .on : .off
+        chimeItem?.state = chimeEnabled ? .on : .off
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -188,6 +203,7 @@ extension AppDelegate {
         if menu === pluginMenu { populatePluginMenu() }
         if menu === sizeMenu { buildSizeMenu() }
         if menu === iconMenu { populateIconMenu() }
+        if menu === followMenu { populateFollowMenu() }
     }
 
     func statusSummary() -> String {

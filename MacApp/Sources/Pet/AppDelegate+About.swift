@@ -37,6 +37,7 @@ extension AppDelegate {
                 + (agents.isEmpty
                     ? "No agent is driving it yet."
                     : "Driven by \(agents.joined(separator: ", ")).")
+                + (Stats.aboutLine().map { "\n\n\($0)" } ?? "")
         )
         info.font = .systemFont(ofSize: 11)
         info.alignment = .center

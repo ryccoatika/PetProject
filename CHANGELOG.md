@@ -27,9 +27,23 @@ Unreleased, and merging into `main`.
 - **Activity bubbles**: a card above the pet's head names the project an
   agent is working in and says what is actually happening — the prompt it
   was given, the command it is running, the file it is editing — and
-  concurrent sessions stack their cards. Toggle from the menu (**Show
-  Activity Bubbles**) or with `pet bubbles show | hide`. Driven by
-  per-session files in `<configDir>/sessions/`, written by the same hooks.
+  concurrent sessions stack their cards. **Click a card** to open that
+  session's folder. Toggle from the menu (**Show Activity Bubbles**) or with
+  `pet bubbles show | hide`. Driven by per-session files in
+  `<configDir>/sessions/`, written by the same hooks.
+- **Chime When an Agent Needs You** (menu, off by default): a sound the
+  moment any session starts waiting on a permission.
+- The **menu bar icon** carries a live session count, red with a `!` when one
+  needs you — glanceable from any Space.
+- **Follow Session** (menu): pin the pose to one session, or leave it on
+  *Most urgent* so the pet reflects whichever session most wants attention
+  rather than whichever agent wrote last.
+- `pet stats` and a line in About tally today's sessions, tools and active
+  time.
+- **Streaks**: a longer, bigger celebration after a clean run of tools, and a
+  glummer, longer failed pose during a rough patch.
+- **Throw the pet**: flick it and it sails, bounces off the screen edges and
+  settles (not while chase mode is on).
 
 ### Changed
 

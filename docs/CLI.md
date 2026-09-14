@@ -12,6 +12,7 @@ link too, pointing it at the copy in `~/Applications`.
     pet show | hide         the pet itself
     pet tray show | hide    the menu bar icon
     pet bubbles show | hide the activity bubbles above the pet
+    pet stats               today's sessions, tools and active time
     pet skins               list skins, current one marked
     pet skin <id>           switch skin
     pet skins dir           print the skins folder
@@ -68,12 +69,26 @@ The pet polls a single file and maps what it finds to a pose:
 
 Alongside the single state line, `pet event` keeps one small file per agent
 session in `<configDir>/sessions/<session-id>`, holding
-`EVENT|TOOL|EPOCH|PROJECT|DETAIL`. Those drive the activity bubbles above the
-pet's head — one card per session naming the project and what is actually
-happening (the prompt, the command, the file), so two projects running at
-once stack two bubbles. `SessionEnd` retires a session's file; stale ones age
-out. The menu has **Show Activity Bubbles**, and `pet bubbles show | hide` is
-the same switch.
+`EVENT|TOOL|EPOCH|PROJECT|DETAIL|CWD` (the last base64-encoded). Those drive
+the activity bubbles above the pet's head — one card per session naming the
+project and what is actually happening (the prompt, the command, the file),
+so two projects running at once stack two bubbles. **Click a card** to open
+that session's folder in Finder. `SessionEnd` retires a session's file; stale
+ones age out. The menu has **Show Activity Bubbles**, and `pet bubbles
+show | hide` is the same switch.
+
+A few things follow from having every session in view:
+
+- **Chime When an Agent Needs You** (menu, off by default) plays a sound the
+  moment any session starts waiting on a permission — the one time you have
+  to look.
+- The **menu bar icon** shows a live session count, turning red with a `!`
+  when one needs you, so a glance works even with the pet on another Space.
+- **Follow Session** (menu) pins the pose to one session; left on *Most
+  urgent* the pet shows whichever session most wants attention rather than
+  whichever agent wrote last.
+- `pet stats` (and a line in About) tallies today's sessions, tools run and
+  active time.
 
 `pet event <name>` is what writes that line: agent hooks call the CLI
 directly, so there is no generated shell script anywhere. With `--allow` it
@@ -88,6 +103,8 @@ the pet simply idles, wanders and sleeps.
 
 - **Drag** the pet anywhere; the drop position is remembered.
 - **Double-click** toggles chase mode (follow the cursor while Claude is idle).
+- **Flick** the pet to throw it — it sails, bounces off the screen edges and
+  settles. (Not while chase mode is on.)
 - **Menu bar 🐈**: live status, skin picker, chase toggle, quit.
 - Clicks only register on the creature itself; everywhere else in its window
   they pass through to the app underneath.

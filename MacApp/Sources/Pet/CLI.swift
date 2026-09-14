@@ -55,6 +55,7 @@ enum CLI {
         var session = ""
         var project = ""
         var detail = ""
+        var cwd = ""
         if isatty(FileHandle.standardInput.fileDescriptor) == 0 {  // only when piped
             let data = FileHandle.standardInput.readDataToEndOfFile()
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -72,11 +73,17 @@ enum CLI {
                     json["session_id"] as? String
                     ?? json["conversation_id"] as? String
                     ?? json["conversationId"] as? String ?? ""
-                let cwd =
+                cwd =
                     json["cwd"] as? String
                     ?? (json["workspace_roots"] as? [String])?.first
                     ?? (json["workspacePaths"] as? [String])?.first ?? ""
-                if !cwd.isEmpty { project = URL(fileURLWithPath: cwd).lastPathComponent }
+                if !cwd.isEmpty {
+                    // a folder name may itself contain "|"; keep it out of the
+                    // pipe-delimited line
+                    project = URL(fileURLWithPath: cwd).lastPathComponent
+                        .replacingOccurrences(of: "|", with: " ")
+                        .split(whereSeparator: \.isNewline).joined(separator: " ")
+                }
                 detail = eventDetail(json)
             }
         }
@@ -96,13 +103,60 @@ enum CLI {
             } else {
                 try? FileManager.default.createDirectory(
                     at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                // cwd is base64'd so a path with "|" or spaces survives the
+                // pipe-delimited line intact.
+                let encodedCwd = Data(cwd.utf8).base64EncodedString()
                 let entry =
                     "\(recorded)|\(tool)|\(Int(Date().timeIntervalSince1970))"
-                    + "|\(project)|\(detail)\n"
+                    + "|\(project)|\(detail)|\(encodedCwd)\n"
                 try? entry.write(to: file, atomically: true, encoding: .utf8)
             }
         }
+
+        recordStat(event: recorded, session: session, tool: tool)
         finish()
+    }
+
+    /// A tiny daily tally for `pet stats`: tools run, sessions seen, and the
+    /// span from first to last event. One JSON object keyed by day.
+    static func recordStat(event: String, session: String, tool: String) {
+        let file = SkinStore.configDir.appendingPathComponent("stats.json")
+        var all =
+            (try? Data(contentsOf: file)).flatMap {
+                try? JSONSerialization.jsonObject(with: $0) as? [String: [String: Any]]
+            } ?? [:]
+
+        let day = Self.dayKey()
+        var today = all[day] ?? [:]
+        let now = Int(Date().timeIntervalSince1970)
+
+        // a tool run is one PreToolUse
+        if event == "PreToolUse" { today["tools"] = (today["tools"] as? Int ?? 0) + 1 }
+        if event == "PostToolUseFailure" || event == "StopFailure" {
+            today["failures"] = (today["failures"] as? Int ?? 0) + 1
+        }
+        if !session.isEmpty {
+            var seen = Set(today["sessions"] as? [String] ?? [])
+            seen.insert(session)
+            today["sessions"] = Array(seen)
+        }
+        if today["first"] == nil { today["first"] = now }
+        today["last"] = now
+        all[day] = today
+
+        // keep the file from growing without bound — the last 60 days is plenty
+        if all.count > 60 {
+            for key in all.keys.sorted().prefix(all.count - 60) { all.removeValue(forKey: key) }
+        }
+        if let out = try? JSONSerialization.data(withJSONObject: all, options: [.sortedKeys]) {
+            try? out.write(to: file)
+        }
+    }
+
+    /// yyyy-MM-dd in the local calendar, without pulling in a DateFormatter.
+    static func dayKey(_ date: Date = Date()) -> String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
     /// One human line saying what the agent is doing, straight from the
@@ -169,6 +223,7 @@ enum CLI {
               show | hide            show or hide the pet
               tray show | tray hide  show or hide the menu bar icon
               bubbles show | hide    the activity bubbles above the pet
+              stats                  today's sessions, tools and active time
               size [50…200 | reset]  how big the pet is drawn
 
             SKINS AND SPRITE PETS
@@ -218,6 +273,7 @@ enum CLI {
         case "hide": setHidden(true)
         case "tray": tray(args.first)
         case "bubbles": bubbles(args.first)
+        case "stats": stats()
         case "size": size(args.first)
         case "skins": args.first == "dir" ? print(SkinStore.userDir.path) : listSkins()
         case "pets": pets(args)

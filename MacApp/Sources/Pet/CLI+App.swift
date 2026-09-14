@@ -87,6 +87,21 @@ extension CLI {
         }
     }
 
+    /// `pet stats` — a small tally of today and the recent past.
+    static func stats() {
+        let (today, totals) = Stats.summary()
+        print("today:")
+        print("  sessions : \(today.sessions)")
+        print("  tools    : \(today.tools)")
+        print("  failures : \(today.failures)")
+        print("  active   : \(Stats.humanSpan(today.activeSeconds))")
+        print("")
+        print("last \(totals.days) day(s):")
+        print("  sessions : \(totals.sessions)")
+        print("  tools    : \(totals.tools)")
+        print("  failures : \(totals.failures)")
+    }
+
     /// The activity bubbles above the pet's head.
     static func bubbles(_ action: String?) {
         Prefs.refresh()
