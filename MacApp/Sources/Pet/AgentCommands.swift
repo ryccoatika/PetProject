@@ -79,9 +79,11 @@ enum AgentCommands {
         }
         ```
 
-        The spritesheet is a PNG with a fully transparent background,
-        8 columns of 192x208-pixel cells, so 1536 px wide; height is
-        rows x 208. Rows are animation tracks, top to bottom:
+        The spritesheet is a PNG or WebP with a fully transparent background —
+        `spritesheetPath` just has to match the filename; PNG is the easy one
+        to generate from a script. 8 columns of 192x208-pixel cells, so
+        1536 px wide; height is rows x 208. Rows are animation tracks, top to
+        bottom:
 
         | Row | Track | Shows when |
         |-----|-------|------------|
