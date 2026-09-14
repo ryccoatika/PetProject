@@ -418,6 +418,7 @@ extension AppDelegate {
                 view.needsDisplay = true
             }
         }
+        animateTrayIfNeeded()  // the menu bar icon follows a sprite skin
         sinceSave += dt
         if sinceSave >= 5 { sinceSave = 0; savePos() }
         setLoopRate(desiredLoopRate())

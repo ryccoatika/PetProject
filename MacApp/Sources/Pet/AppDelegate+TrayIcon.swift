@@ -38,11 +38,12 @@ extension AppDelegate {
         guard let button = statusItem?.button else { return }
         button.title = ""
         button.image = nil
+        lastTraySignature = ""  // force the next animation tick to redraw
 
         let choice = trayIconChoice
         if choice == "skin" {
             if let pet = view.sprite {
-                button.image = Self.spriteThumbnail(pet)
+                button.image = Self.spriteThumbnail(pet, track: view.spriteTrack, frame: 0)
             } else {
                 button.title = Self.emoji(forSkin: view.skin.id)
             }
@@ -68,12 +69,27 @@ extension AppDelegate {
         return thumb
     }
 
-    /// A sprite pet's first idle frame at menu bar size.
-    static func spriteThumbnail(_ pet: SpritePet) -> NSImage {
+    /// A sprite pet frame at menu bar size. Not a template image — sprite art
+    /// is full colour, so it keeps its own colours in the menu bar.
+    static func spriteThumbnail(_ pet: SpritePet, track: SpritePet.Track, frame: Int) -> NSImage {
         NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
-            pet.draw(track: .idle, frame: 0, in: rect)
+            pet.draw(track: track, frame: frame, in: rect)
             return true
         }
+    }
+
+    /// When the menu bar icon is following the skin and that skin is a sprite
+    /// pet, redraw it from the pet's current track and frame so it animates
+    /// in step with the pet itself. Cheap: only when the frame changed, and a
+    /// no-op for drawn skins (a static emoji) or any other icon choice.
+    func animateTrayIfNeeded() {
+        guard trayIconChoice == "skin", let pet = view.sprite,
+            let button = statusItem?.button
+        else { return }
+        let signature = "\(view.spriteTrack)|\(view.spriteFrame)"
+        guard signature != lastTraySignature else { return }
+        lastTraySignature = signature
+        button.image = Self.spriteThumbnail(pet, track: view.spriteTrack, frame: view.spriteFrame)
     }
 
     /// Rebuilt on every open, so the tick and symbol availability stay right.

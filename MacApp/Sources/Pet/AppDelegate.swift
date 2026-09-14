@@ -76,6 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var followMenu = NSMenu()
     /// The menu bar badge tracks live sessions and whether any needs you.
     var lastBadge = ""
+    /// The sprite track+frame last drawn into the menu bar, so it only
+    /// redraws when the frame actually changes.
+    var lastTraySignature = ""
 
     /// Streaks: consecutive tool successes lift the celebration; repeated
     /// failures earn a longer, glummer failed pose.

@@ -22,8 +22,9 @@ Unreleased, and merging into `main`.
   once-a-day check that adds an "Update available" row to the menu when a
   newer release is out. Nothing downloads itself — both link to the releases
   page.
-- The menu bar icon can now be chosen: the app icon, the current skin
-  (sprite pets draw their own idle frame), or any SF Symbol.
+- The menu bar icon can now be chosen: the app icon, the current skin, or any
+  SF Symbol. With a sprite-pet skin the menu bar icon animates in step with
+  the pet, following its current track and frame.
 - **Activity bubbles**: a card above the pet's head names the project an
   agent is working in and says what is actually happening — the prompt it
   was given, the command it is running, the file it is editing — and
