@@ -10,6 +10,8 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-14
+
 ### Added
 
 - Agent plugins for **Antigravity**, **Cursor** and **pi**. Antigravity's
