@@ -186,9 +186,17 @@ extension AppDelegate {
     func buildSizeMenu() {
         sizeMenu.removeAllItems()
 
-        let readout = NSMenuItem(title: sizeLabel(), action: nil, keyEquivalent: "")
-        readout.isEnabled = false
-        sizeReadout = readout
+        // A custom view rather than a disabled item, so the readout keeps a
+        // full-contrast label colour instead of the greyed disabled look.
+        let labelHolder = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 22))
+        let label = NSTextField(labelWithString: sizeLabel())
+        label.frame = NSRect(x: 20, y: 2, width: 184, height: 16)
+        label.font = .menuFont(ofSize: 0)
+        label.textColor = .labelColor
+        labelHolder.addSubview(label)
+        sizeReadout = label
+        let readout = NSMenuItem()
+        readout.view = labelHolder
         sizeMenu.addItem(readout)
 
         let holder = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 30))
@@ -220,7 +228,7 @@ extension AppDelegate {
 
     @objc func sizeSliderMoved(_ sender: NSSlider) {
         setArtScale(CGFloat(sender.doubleValue))
-        sizeReadout?.title = sizeLabel()
+        sizeReadout?.stringValue = sizeLabel()
         // the menu is still open, so this item was built before the drag
         sizeResetItem?.isEnabled = artScale != 1
     }
@@ -228,7 +236,7 @@ extension AppDelegate {
     @objc func resetSize() {
         setArtScale(1)
         sizeSlider?.doubleValue = 1
-        sizeReadout?.title = sizeLabel()
+        sizeReadout?.stringValue = sizeLabel()
         sizeResetItem?.isEnabled = false
     }
 

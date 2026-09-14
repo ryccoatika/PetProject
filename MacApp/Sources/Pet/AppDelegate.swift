@@ -93,7 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var throwing = false
     var dragSamples: [(t: TimeInterval, p: CGPoint)] = []
     var sizeSlider: NSSlider?
-    var sizeReadout: NSMenuItem?
+    var sizeReadout: NSTextField?
     var sizeResetItem: NSMenuItem?
     let mainMenu = NSMenu()
     var statusRow: NSMenuItem!
