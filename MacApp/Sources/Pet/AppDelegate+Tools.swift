@@ -128,53 +128,34 @@ extension AppDelegate {
         }
     }
 
-    /// The standard About panel, so it looks and behaves like every other Mac
-    /// app's: same layout, same keyboard handling, free localisation.
+    /// About as an alert rather than the standard panel: the standard panel
+    /// takes no buttons, and this is where Check for Updates lives.
     @objc func showAbout() {
-        let credits = NSMutableAttributedString()
-        let body: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: {
-                let p = NSMutableParagraphStyle()
-                p.alignment = .center
-                p.lineSpacing = 2
-                return p
-            }(),
-        ]
-        credits.append(
-            NSAttributedString(
-                string: "A desktop pet that reacts to your coding agent.\n"
-                    + "Drawn in code — no image assets.\n\n",
-                attributes: body))
+        let alert = NSAlert()
+        alert.messageText = "Desktop Pet \(Build.version)"
 
         let currentArt = view.sprite.map { "\($0.name) — \($0.rows) row atlas" } ?? view.skin.name
-        credits.append(
-            NSAttributedString(
-                string: "Currently wearing \(currentArt).\n",
-                attributes: body))
-
         let agents = HookHost.all.filter { HookPlugin.isRegistered($0) }.map(\.name)
-        credits.append(
-            NSAttributedString(
-                string: agents.isEmpty
-                    ? "No agent is driving it yet.\n\n"
-                    : "Driven by \(agents.joined(separator: ", ")).\n\n",
-                attributes: body))
+        alert.informativeText =
+            "A desktop pet that reacts to your coding agent.\n"
+            + "Drawn in code — no image assets.\n\n"
+            + "Currently wearing \(currentArt).\n"
+            + (agents.isEmpty
+                ? "No agent is driving it yet."
+                : "Driven by \(agents.joined(separator: ", ")).")
 
-        let link = NSMutableAttributedString(
-            string: "github.com/ryccoatika/PetProject",
-            attributes: body.merging([
-                .link: URL(string: "https://github.com/ryccoatika/PetProject")!
-            ]) { _, new in new })
-        credits.append(link)
-
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Check for Updates")
+        alert.addButton(withTitle: "GitHub")
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Desktop Pet",
-            .applicationVersion: Build.version,
-            .credits: credits,
-        ])
+        switch alert.runModal() {
+        case .alertSecondButtonReturn:
+            checkForUpdates()
+        case .alertThirdButtonReturn:
+            NSWorkspace.shared.open(URL(string: "https://github.com/ryccoatika/PetProject")!)
+        default:
+            break
+        }
     }
 
     func showTray() {

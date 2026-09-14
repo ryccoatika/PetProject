@@ -18,9 +18,10 @@ Unreleased, and merging into `main`.
   synchronous PreToolUse hook is answered with an allow decision so it never
   stalls, Cursor gets flat command hooks in `~/.cursor/hooks.json` (IDE and
   CLI both), and pi gets a generated TypeScript extension (pi 0.83+).
-- **Check for Updates** in the menu, plus a quiet once-a-day check that adds
-  an "Update available" row when a newer release is out. Nothing downloads
-  itself — both link to the releases page.
+- **Check for Updates**, from a button in the About dialog, plus a quiet
+  once-a-day check that adds an "Update available" row to the menu when a
+  newer release is out. Nothing downloads itself — both link to the releases
+  page.
 - The menu bar icon can now be chosen: the app icon, the current skin
   (sprite pets draw their own idle frame), or any SF Symbol.
 

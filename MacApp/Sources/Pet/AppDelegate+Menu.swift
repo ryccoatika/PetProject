@@ -100,12 +100,6 @@ extension AppDelegate {
             cliItem = nil
         }
 
-        let updates = NSMenuItem(
-            title: "Check for Updates…", action: #selector(checkForUpdates),
-            keyEquivalent: "")
-        updates.target = self
-        mainMenu.addItem(updates)
-
         let about = NSMenuItem(
             title: "About Desktop Pet", action: #selector(showAbout),
             keyEquivalent: "")
