@@ -24,6 +24,10 @@ Unreleased, and merging into `main`.
   page.
 - The menu bar icon can now be chosen: the app icon, the current skin
   (sprite pets draw their own idle frame), or any SF Symbol.
+- **/pet-skin** and **/pet-sprite** commands, installed with the plugin for
+  every agent with a command mechanism (Claude Code, Codex, Gemini CLI,
+  opencode, Cursor): ask the agent for a new drawn skin or a spritesheet pet
+  and it knows the formats, the folders and the CLI.
 
 ### Changed
 

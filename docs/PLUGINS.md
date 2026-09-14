@@ -30,6 +30,29 @@ Then start a new session in that agent so the hooks load. The `pet` command
 comes with the app, so there is nothing else to copy and no separate installer
 to keep in step.
 
+## Skin commands
+
+Installing a plugin also teaches the agent to make skins, where the agent has
+a custom-command mechanism: two files land next to the hooks and leave with
+`pet plugin uninstall`.
+
+- **/pet-skin** — designs a drawn `.petskin` (the small JSON format), writes
+  it into the skins folder and switches to it.
+- **/pet-sprite** — creates a spritesheet pet: the atlas layout and track
+  table are in the command, the agent generates the sheet with a script,
+  then installs it with `pet pets install`.
+
+| Agent | Files |
+|---|---|
+| Claude Code | `~/.claude/commands/pet-{skin,sprite}.md` |
+| Codex | `~/.codex/prompts/pet-{skin,sprite}.md` |
+| Gemini CLI | `~/.gemini/commands/pet-{skin,sprite}.toml` |
+| opencode | `~/.config/opencode/command/pet-{skin,sprite}.md` |
+| Cursor | `~/.cursor/commands/pet-{skin,sprite}.md` |
+
+Antigravity and pi have no equivalent, so they get hooks only. Only files at
+exactly these paths are ever written or removed.
+
 ## What it registers
 
 Five of the seven take JSON config listing commands to run. Claude Code,

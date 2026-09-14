@@ -60,6 +60,20 @@ struct HookHost {
     /// alone cannot (Antigravity shares ~/.gemini with Gemini CLI). Empty
     /// means the config folder decides.
     var presenceMarkers: [URL] = []
+    /// Command files (/pet-skin, /pet-sprite) installed next to the hooks,
+    /// as paths relative to `configRoot`. Empty when the agent has no
+    /// command mechanism.
+    var commandFiles: [(path: String, source: String)] = []
+
+    /// The folder command paths resolve against.
+    var configRoot: URL {
+        switch kind {
+        case .json(let files, _, _, _, _):
+            return files[0].deletingLastPathComponent()
+        case .plugin(let file, _, _):
+            return file.deletingLastPathComponent().deletingLastPathComponent()
+        }
+    }
 
     var files: [URL] {
         switch kind {
@@ -136,12 +150,12 @@ struct HookHost {
                 kind: .json(
                     files: resolved, events: events,
                     timeout: timeout, supportsAsync: supportsAsync, dialect: dialect),
-                presenceMarkers: presenceMarkers)
+                presenceMarkers: presenceMarkers, commandFiles: commandFiles)
         case .plugin(_, let alternates, let source):
             return HookHost(
                 id: id, name: name, fileName: fileName,
                 kind: .plugin(file: resolved[0], alternates: alternates, source: source),
-                presenceMarkers: presenceMarkers)
+                presenceMarkers: presenceMarkers, commandFiles: commandFiles)
         }
     }
 
@@ -159,7 +173,9 @@ struct HookHost {
                     HookEvent("Notification"), HookEvent("Stop"),
                     HookEvent("SessionEnd"),
                 ],
-                timeout: 5, supportsAsync: true, dialect: .nested))
+                timeout: 5, supportsAsync: true, dialect: .nested),
+            commandFiles: AgentCommands.files(
+                folder: "commands", args: "$ARGUMENTS", style: .frontmatter))
     }
 
     /// Codex keeps hooks in ~/.codex/hooks.json. Matchers there are regexes,
@@ -176,7 +192,9 @@ struct HookHost {
                     HookEvent("PermissionRequest", as: "Notification"),
                     HookEvent("Stop"), HookEvent("SessionEnd"),
                 ],
-                timeout: 5, supportsAsync: true, dialect: .nested))
+                timeout: 5, supportsAsync: true, dialect: .nested),
+            commandFiles: AgentCommands.files(
+                folder: "prompts", args: "$ARGUMENTS", style: .plain))
     }
 
     /// Gemini CLI uses its own event vocabulary, its timeout is in
@@ -195,7 +213,9 @@ struct HookHost {
                     HookEvent("AfterAgent", as: "Stop"),
                     HookEvent("Notification"), HookEvent("SessionEnd"),
                 ],
-                timeout: 5000, supportsAsync: false, dialect: .nested))
+                timeout: 5000, supportsAsync: false, dialect: .nested),
+            commandFiles: AgentCommands.files(
+                folder: "commands", args: "{{args}}", style: .toml))
     }
 
     /// Antigravity's hooks.json lives under ~/.gemini but is its own format —
@@ -245,7 +265,10 @@ struct HookHost {
                     HookEvent("stop", as: "Stop"),
                     HookEvent("sessionEnd", as: "SessionEnd"),
                 ],
-                timeout: 5, supportsAsync: false, dialect: .flat))
+                timeout: 5, supportsAsync: false, dialect: .flat),
+            commandFiles: AgentCommands.files(
+                folder: "commands", args: "the request written after the command",
+                style: .frontmatter))
     }
 
     /// opencode loads JavaScript plugins. Both plugin/ and plugins/ are read
@@ -257,7 +280,9 @@ struct HookHost {
             kind: .plugin(
                 file: dir.appendingPathComponent("plugin/pet.js"),
                 alternates: [dir.appendingPathComponent("plugins/pet.js")],
-                source: OpencodePlugin.source))
+                source: OpencodePlugin.source),
+            commandFiles: AgentCommands.files(
+                folder: "command", args: "$ARGUMENTS", style: .frontmatter))
     }
 
     /// pi has no command hooks; it loads TypeScript extensions from
