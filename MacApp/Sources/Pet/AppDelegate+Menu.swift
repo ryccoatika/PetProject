@@ -74,6 +74,13 @@ extension AppDelegate {
         chaseItem.state = chaseWhenIdle ? .on : .off
         mainMenu.addItem(chaseItem)
 
+        bubbleItem = NSMenuItem(
+            title: "Show Activity Bubbles",
+            action: #selector(toggleBubbles), keyEquivalent: "")
+        bubbleItem.target = self
+        bubbleItem.state = bubblesEnabled ? .on : .off
+        mainMenu.addItem(bubbleItem)
+
         let hint = NSMenuItem(
             title: "Drag to move · double-click to toggle chase",
             action: nil, keyEquivalent: "")
@@ -169,6 +176,7 @@ extension AppDelegate {
         statusRow?.title = statusSummary()
         visItem?.title = hidden ? "Show Pet" : "Hide Pet"
         chaseItem?.state = chaseWhenIdle ? .on : .off
+        bubbleItem?.state = bubblesEnabled ? .on : .off
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {

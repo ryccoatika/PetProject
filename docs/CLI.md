@@ -11,6 +11,7 @@ link too, pointing it at the copy in `~/Applications`.
     pet start | stop | restart
     pet show | hide         the pet itself
     pet tray show | hide    the menu bar icon
+    pet bubbles show | hide the activity bubbles above the pet
     pet skins               list skins, current one marked
     pet skin <id>           switch skin
     pet skins dir           print the skins folder
@@ -64,6 +65,14 @@ The pet polls a single file and maps what it finds to a pose:
 | `Notification` | alert, `!` bubble, "needs you" |
 | `Stop` | celebrating for ~2.4s, then idle |
 | nothing recent | sitting → grooming → asleep |
+
+Alongside the single state line, `pet event` keeps one small file per agent
+session in `<configDir>/sessions/<session-id>`, holding
+`EVENT|TOOL|EPOCH|PROJECT`. Those drive the activity bubbles above the pet's
+head — one card per session, so two projects running at once stack two
+bubbles. `SessionEnd` retires a session's file; stale ones age out. The menu
+has **Show Activity Bubbles**, and `pet bubbles show | hide` is the same
+switch.
 
 `pet event <name>` is what writes that line: agent hooks call the CLI
 directly, so there is no generated shell script anywhere. With `--allow` it

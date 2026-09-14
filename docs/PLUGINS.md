@@ -171,10 +171,23 @@ The hook writes one line to the pet's state file:
 
     EVENT|TOOL|EPOCH           e.g.  PreToolUse|Edit|1789137504
 
-That is the whole interface. `pet event <name>` reads the hook payload on
-stdin, pulls out `tool_name`, and writes that line. Anything that can write a
-line of text can drive the pet, so these two agents are simply the first
-producers — a mobile pet would define its own.
+That is the whole interface for the pet's pose. `pet event <name>` reads the
+hook payload on stdin, pulls out `tool_name`, and writes that line. Anything
+that can write a line of text can drive the pet, so these agents are simply
+the first producers — a mobile pet would define its own.
+
+For the activity bubbles there is a second, optional layer: when the payload
+carries a session id (`session_id`, `conversation_id` or `conversationId`)
+the same event is also written to
+
+    ~/.config/pet/sessions/<session-id>
+
+    EVENT|TOOL|EPOCH|PROJECT
+
+where PROJECT is the last component of the payload's working directory
+(`cwd`, `workspace_roots` or `workspacePaths`). One file per session means
+concurrent agents never fight over a file. `SessionEnd` deletes the file, and
+anything a day old is cleaned up on read.
 
 ## Notes
 

@@ -24,6 +24,11 @@ Unreleased, and merging into `main`.
   page.
 - The menu bar icon can now be chosen: the app icon, the current skin
   (sprite pets draw their own idle frame), or any SF Symbol.
+- **Activity bubbles**: a card above the pet's head says which project an
+  agent is working in and what it is doing, and concurrent sessions stack
+  their cards. Toggle from the menu (**Show Activity Bubbles**) or with
+  `pet bubbles show | hide`. Driven by per-session files in
+  `<configDir>/sessions/`, written by the same hooks.
 
 ### Changed
 

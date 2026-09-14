@@ -32,6 +32,7 @@ extension CLI {
         print("hidden     : \(d.bool(forKey: "petHidden") ? "yes" : "no")")
         print("chase      : \(d.bool(forKey: "petChase") ? "on" : "off")")
         print("menu bar   : \(d.bool(forKey: "petTrayHidden") ? "hidden" : "shown")")
+        print("bubbles    : \(d.bool(forKey: "petBubblesHidden") ? "hidden" : "shown")")
         print(
             "size       : \(Int((((d.object(forKey: "petScale") as? Double) ?? 1) * 100).rounded()))%"
         )
@@ -83,6 +84,22 @@ extension CLI {
             print(Prefs.store.bool(forKey: "petTrayHidden") ? "hidden" : "shown")
         default:
             fail("usage: pet tray [show | hide]")
+        }
+    }
+
+    /// The activity bubbles above the pet's head.
+    static func bubbles(_ action: String?) {
+        Prefs.refresh()
+        switch action {
+        case "show", "hide":
+            Prefs.store.set(action == "hide", forKey: "petBubblesHidden")
+            Prefs.store.synchronize()
+            Prefs.notifyRunningApp()
+            print(action == "hide" ? "activity bubbles hidden" : "activity bubbles shown")
+        case nil, "status":
+            print(Prefs.store.bool(forKey: "petBubblesHidden") ? "hidden" : "shown")
+        default:
+            fail("usage: pet bubbles [show | hide]")
         }
     }
 

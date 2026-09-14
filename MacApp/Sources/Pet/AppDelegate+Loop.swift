@@ -55,6 +55,8 @@ extension AppDelegate {
             if hidden { window.orderOut(nil) } else { place(); window.orderFrontRegardless() }
         }
         chaseWhenIdle = d.bool(forKey: "petChase")
+        bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
+        if !bubblesEnabled { hideBubbles() }
         // a missing key means the default size, which is how `pet size reset`
         // clears it — reading it as "no change" would ignore the reset
         let savedScale = CGFloat((d.object(forKey: "petScale") as? Double) ?? 1)
@@ -143,6 +145,7 @@ extension AppDelegate {
         guard abs(pos.x - placedAt.x) > 0.5 || abs(pos.y - placedAt.y) > 0.5 else { return }
         placedAt = pos
         window.setFrameOrigin(NSPoint(x: pos.x - size.width / 2, y: pos.y))
+        placeBubbles()  // the stack rides along
     }
 
     // MARK: state file
@@ -226,6 +229,7 @@ extension AppDelegate {
             if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
             updatePose()
             isActive = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
+            hideBubbles()
             setLoopRate(desiredLoopRate())
             return
         }
@@ -256,6 +260,12 @@ extension AppDelegate {
 
         if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
         updatePose()
+
+        sinceBubbleRead += dt
+        if sinceBubbleRead >= 0.5 {
+            sinceBubbleRead = 0
+            updateBubbles()
+        }
 
         let active = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
         isActive = active

@@ -52,6 +52,8 @@ enum CLI {
         guard let name = args.first(where: { !$0.hasPrefix("-") }) else { finish() }
         var tool = ""
         var recorded = name
+        var session = ""
+        var project = ""
         if isatty(FileHandle.standardInput.fileDescriptor) == 0 {  // only when piped
             let data = FileHandle.standardInput.readDataToEndOfFile()
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -63,12 +65,39 @@ enum CLI {
                 // else the failure is in the result payload, so read it and
                 // report the same thing.
                 if name == "PostToolUse", toolFailed(json) { recorded = "PostToolUseFailure" }
+                // Who and where, for the activity bubbles. Each agent spells
+                // these its own way.
+                session =
+                    json["session_id"] as? String
+                    ?? json["conversation_id"] as? String
+                    ?? json["conversationId"] as? String ?? ""
+                let cwd =
+                    json["cwd"] as? String
+                    ?? (json["workspace_roots"] as? [String])?.first
+                    ?? (json["workspacePaths"] as? [String])?.first ?? ""
+                if !cwd.isEmpty { project = URL(fileURLWithPath: cwd).lastPathComponent }
             }
         }
         let dir = SkinStore.configDir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let line = "\(recorded)|\(tool)|\(Int(Date().timeIntervalSince1970))\n"
         try? line.write(to: dir.appendingPathComponent("state"), atomically: true, encoding: .utf8)
+
+        // Per-session activity, one small file each, so concurrent agents
+        // never fight over one file. SessionEnd retires the session.
+        if !session.isEmpty {
+            let safe = String(
+                session.map { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." ? $0 : "_" })
+            let file = dir.appendingPathComponent("sessions/\(safe)")
+            if recorded == "SessionEnd" {
+                try? FileManager.default.removeItem(at: file)
+            } else {
+                try? FileManager.default.createDirectory(
+                    at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                let entry = "\(recorded)|\(tool)|\(Int(Date().timeIntervalSince1970))|\(project)\n"
+                try? entry.write(to: file, atomically: true, encoding: .utf8)
+            }
+        }
         finish()
     }
 
@@ -106,6 +135,7 @@ enum CLI {
               start | stop | restart
               show | hide            show or hide the pet
               tray show | tray hide  show or hide the menu bar icon
+              bubbles show | hide    the activity bubbles above the pet
               size [50…200 | reset]  how big the pet is drawn
 
             SKINS AND SPRITE PETS
@@ -154,6 +184,7 @@ enum CLI {
         case "show": setHidden(false)
         case "hide": setHidden(true)
         case "tray": tray(args.first)
+        case "bubbles": bubbles(args.first)
         case "size": size(args.first)
         case "skins": args.first == "dir" ? print(SkinStore.userDir.path) : listSkins()
         case "pets": pets(args)

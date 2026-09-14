@@ -53,6 +53,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var aboutWindow: NSWindow?
     var aboutCheckButton: NSButton?
     var aboutSpinner: NSProgressIndicator?
+    /// The activity-bubble stack above the pet's head.
+    var bubbleWindow: NSWindow?
+    var bubbleView: BubbleView?
+    var bubblesEnabled = true
+    var bubbleSignature = ""
+    var bubbleItem: NSMenuItem!
+    var sinceBubbleRead: Double = 0
     var sizeSlider: NSSlider?
     var sizeReadout: NSMenuItem?
     var sizeResetItem: NSMenuItem?
@@ -102,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let d = Prefs.store
         chaseWhenIdle = d.bool(forKey: "petChase")
+        bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
         if let saved = d.object(forKey: "petScale") as? Double { artScale = CGFloat(saved) }
         reloadSkins()
         let wanted = d.string(forKey: "petSkin") ?? "tabby"
