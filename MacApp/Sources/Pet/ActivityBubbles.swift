@@ -17,7 +17,7 @@ struct AgentSession {
     var age: TimeInterval { Date().timeIntervalSince1970 - stamp }
 
     /// What the card should say, or nil when this session has gone quiet.
-    /// Needing attention lingers; finishing fades quickly.
+    /// Needing attention lingers; starting and finishing fade in 15 seconds.
     var activity: String? {
         switch event {
         case "PostToolUseFailure", "StopFailure":
@@ -29,9 +29,9 @@ struct AgentSession {
         case "UserPromptSubmit", "PostToolUse":
             return age < 600 ? "Thinking" : nil
         case "SessionStart":
-            return age < 60 ? "Starting" : nil
+            return age < 15 ? "Starting" : nil
         case "Stop":
-            return age < 60 ? "Finished" : nil
+            return age < 15 ? "Finished" : nil
         default:
             return nil
         }
