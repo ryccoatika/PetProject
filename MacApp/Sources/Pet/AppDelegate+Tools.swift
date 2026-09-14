@@ -128,36 +128,6 @@ extension AppDelegate {
         }
     }
 
-    /// About as an alert rather than the standard panel: the standard panel
-    /// takes no buttons, and this is where Check for Updates lives.
-    @objc func showAbout() {
-        let alert = NSAlert()
-        alert.messageText = "Desktop Pet \(Build.version)"
-
-        let currentArt = view.sprite.map { "\($0.name) — \($0.rows) row atlas" } ?? view.skin.name
-        let agents = HookHost.all.filter { HookPlugin.isRegistered($0) }.map(\.name)
-        alert.informativeText =
-            "A desktop pet that reacts to your coding agent.\n"
-            + "Drawn in code — no image assets.\n\n"
-            + "Currently wearing \(currentArt).\n"
-            + (agents.isEmpty
-                ? "No agent is driving it yet."
-                : "Driven by \(agents.joined(separator: ", ")).")
-
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Check for Updates")
-        alert.addButton(withTitle: "GitHub")
-        NSApp.activate(ignoringOtherApps: true)
-        switch alert.runModal() {
-        case .alertSecondButtonReturn:
-            checkForUpdates()
-        case .alertThirdButtonReturn:
-            NSWorkspace.shared.open(URL(string: "https://github.com/ryccoatika/PetProject")!)
-        default:
-            break
-        }
-    }
-
     func showTray() {
         guard statusItem == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

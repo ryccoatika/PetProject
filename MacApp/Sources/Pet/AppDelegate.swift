@@ -48,6 +48,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var iconMenu = NSMenu()
     /// A newer release's tag, when the quiet launch check found one.
     var updateAvailable: String?
+    /// The About window and its update controls; kept so a second About
+    /// brings the same window forward and the spinner can be driven.
+    var aboutWindow: NSWindow?
+    var aboutCheckButton: NSButton?
+    var aboutSpinner: NSProgressIndicator?
     var sizeSlider: NSSlider?
     var sizeReadout: NSMenuItem?
     var sizeResetItem: NSMenuItem?

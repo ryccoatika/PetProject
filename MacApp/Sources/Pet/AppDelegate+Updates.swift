@@ -56,17 +56,25 @@ extension AppDelegate {
         NSWorkspace.shared.open(Self.releasesPage)
     }
 
-    /// The menu item: always answers, with a dialog.
+    /// The About button: spin in place while GitHub answers, then say what
+    /// it said. About stays open the whole time.
     @objc func checkForUpdates() {
+        aboutCheckButton?.isEnabled = false
+        aboutSpinner?.startAnimation(nil)
         fetchLatestReleaseTag { result in
             DispatchQueue.main.async { [weak self] in
-                self?.showUpdateResult(result)
+                guard let self else { return }
+                self.aboutSpinner?.stopAnimation(nil)
+                self.aboutCheckButton?.isEnabled = true
+                self.showUpdateResult(result)
             }
         }
     }
 
+    /// As a sheet on the About window when it is open, else its own dialog.
     private func showUpdateResult(_ result: Result<String, Error>) {
         let alert = NSAlert()
+        var offersRelease = false
         switch result {
         case .success(let tag) where Self.isNewer(tag, than: Build.version):
             rememberAvailableUpdate(tag)
@@ -75,9 +83,7 @@ extension AppDelegate {
                 "You have \(Build.version). The new version is on the releases page."
             alert.addButton(withTitle: "Open Releases Page")
             alert.addButton(withTitle: "Later")
-            NSApp.activate(ignoringOtherApps: true)
-            if alert.runModal() == .alertFirstButtonReturn { openReleasesPage() }
-            return
+            offersRelease = true
         case .success:
             rememberAvailableUpdate(nil)
             alert.messageText = "You're up to date"
@@ -86,8 +92,17 @@ extension AppDelegate {
             alert.messageText = "Could not check for updates"
             alert.informativeText = error.localizedDescription
         }
-        NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        let react: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            if offersRelease && response == .alertFirstButtonReturn {
+                self?.openReleasesPage()
+            }
+        }
+        if let window = aboutWindow, window.isVisible {
+            alert.beginSheetModal(for: window, completionHandler: react)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            react(alert.runModal())
+        }
     }
 
     /// The quiet check on launch: at most once a day, and a newer version
