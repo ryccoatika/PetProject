@@ -54,6 +54,7 @@ enum CLI {
         var recorded = name
         var session = ""
         var project = ""
+        var detail = ""
         if isatty(FileHandle.standardInput.fileDescriptor) == 0 {  // only when piped
             let data = FileHandle.standardInput.readDataToEndOfFile()
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -76,6 +77,7 @@ enum CLI {
                     ?? (json["workspace_roots"] as? [String])?.first
                     ?? (json["workspacePaths"] as? [String])?.first ?? ""
                 if !cwd.isEmpty { project = URL(fileURLWithPath: cwd).lastPathComponent }
+                detail = eventDetail(json)
             }
         }
         let dir = SkinStore.configDir
@@ -94,11 +96,42 @@ enum CLI {
             } else {
                 try? FileManager.default.createDirectory(
                     at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-                let entry = "\(recorded)|\(tool)|\(Int(Date().timeIntervalSince1970))|\(project)\n"
+                let entry =
+                    "\(recorded)|\(tool)|\(Int(Date().timeIntervalSince1970))"
+                    + "|\(project)|\(detail)\n"
                 try? entry.write(to: file, atomically: true, encoding: .utf8)
             }
         }
         finish()
+    }
+
+    /// One human line saying what the agent is doing, straight from the
+    /// payload: what it was asked, or what the tool it is running is up to.
+    /// Cleaned of the state format's separators and kept short.
+    static func eventDetail(_ json: [String: Any]) -> String {
+        var text = ""
+        if let prompt = json["prompt"] as? String {
+            text = prompt
+        } else if let input = json["tool_input"] as? [String: Any]
+            ?? (json["toolCall"] as? [String: Any])?["args"] as? [String: Any]
+        {
+            // the most human field a tool call offers
+            if let description = input["description"] as? String {
+                text = description
+            } else if let path = (input["file_path"] as? String ?? input["filePath"] as? String) {
+                text = URL(fileURLWithPath: path).lastPathComponent
+            } else if let command = input["command"] as? String {
+                text = command
+            } else if let pattern = input["pattern"] as? String {
+                text = pattern
+            } else if let url = input["url"] as? String {
+                text = url
+            }
+        }
+        let flattened = text.split(whereSeparator: \.isNewline).joined(separator: " ")
+            .replacingOccurrences(of: "|", with: " ")
+            .trimmingCharacters(in: .whitespaces)
+        return String(flattened.prefix(90))
     }
 
     /// Did the tool this event describes fail? Agents word it differently:

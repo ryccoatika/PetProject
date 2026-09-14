@@ -182,10 +182,12 @@ the same event is also written to
 
     ~/.config/pet/sessions/<session-id>
 
-    EVENT|TOOL|EPOCH|PROJECT
+    EVENT|TOOL|EPOCH|PROJECT|DETAIL
 
 where PROJECT is the last component of the payload's working directory
-(`cwd`, `workspace_roots` or `workspacePaths`). One file per session means
+(`cwd`, `workspace_roots` or `workspacePaths`) and DETAIL is one short human
+line from the payload — the prompt, a tool call's `description`, the file or
+the command — with newlines and `|` cleaned out. One file per session means
 concurrent agents never fight over a file. `SessionEnd` deletes the file, and
 anything a day old is cleaned up on read.
 

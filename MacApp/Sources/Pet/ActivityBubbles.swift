@@ -13,6 +13,9 @@ struct AgentSession {
     let tool: String
     let stamp: TimeInterval
     let project: String
+    /// What the agent is actually doing — the prompt it was given or the
+    /// tool call's own words — when the payload offered one.
+    let detail: String
 
     var age: TimeInterval { Date().timeIntervalSince1970 - stamp }
 
@@ -25,9 +28,12 @@ struct AgentSession {
         case "Notification", "PermissionRequest":
             return age < 1800 ? "Waiting for you" : nil
         case "PreToolUse":
-            return age < 600 ? "Running \(tool.isEmpty ? "a tool" : tool)" : nil
+            if age >= 600 { return nil }
+            if !detail.isEmpty { return detail }
+            return "Running \(tool.isEmpty ? "a tool" : tool)"
         case "UserPromptSubmit", "PostToolUse":
-            return age < 600 ? "Thinking" : nil
+            if age >= 600 { return nil }
+            return detail.isEmpty ? "Thinking" : detail
         case "SessionStart":
             return age < 5 ? "Starting" : nil
         case "Stop":
@@ -57,7 +63,8 @@ enum SessionStore {
             guard parts.count >= 3, let ts = TimeInterval(parts[2]) else { continue }
             let session = AgentSession(
                 id: name, event: parts[0], tool: parts[1], stamp: ts,
-                project: parts.count > 3 ? parts[3] : "")
+                project: parts.count > 3 ? parts[3] : "",
+                detail: parts.count > 4 ? parts[4] : "")
             if session.age > 86_400 {
                 try? FileManager.default.removeItem(at: file)  // ended without a SessionEnd
                 continue
