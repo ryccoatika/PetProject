@@ -204,6 +204,7 @@ extension AppDelegate {
             Prefs.store.set(id, forKey: "petSkin")
             flash(pet.name.lowercased())
             view.needsDisplay = true
+            applyTrayIcon()  // the icon may be following the skin
             writeRuntime()
             return true
         }
@@ -223,6 +224,7 @@ extension AppDelegate {
         Prefs.store.set(sk.id, forKey: "petSkin")
         flash(sk.name.lowercased())
         view.needsDisplay = true
+        applyTrayIcon()  // the icon may be following the skin
     }
 
     @objc func removeSpritePet(_ item: NSMenuItem) {

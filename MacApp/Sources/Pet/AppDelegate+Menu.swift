@@ -18,6 +18,13 @@ extension AppDelegate {
         statusRow = NSMenuItem(title: statusSummary(), action: nil, keyEquivalent: "")
         statusRow.isEnabled = false
         mainMenu.addItem(statusRow)
+        if let tag = updateAvailable {
+            let update = NSMenuItem(
+                title: "Update available — \(tag)",
+                action: #selector(openReleasesPage), keyEquivalent: "")
+            update.target = self
+            mainMenu.addItem(update)
+        }
         mainMenu.addItem(.separator())
 
         visItem = NSMenuItem(
@@ -31,6 +38,13 @@ extension AppDelegate {
             action: #selector(hideTray), keyEquivalent: "")
         trayItem.target = self
         mainMenu.addItem(trayItem)
+
+        let iconItem = NSMenuItem(title: "Menu Bar Icon", action: nil, keyEquivalent: "")
+        iconMenu.delegate = self  // ticks refresh each time it opens
+        iconMenu.autoenablesItems = false
+        populateIconMenu()
+        iconItem.submenu = iconMenu
+        mainMenu.addItem(iconItem)
         mainMenu.addItem(.separator())
 
         let skinItem = NSMenuItem(title: "Skin", action: nil, keyEquivalent: "")
@@ -85,6 +99,12 @@ extension AppDelegate {
         } else {
             cliItem = nil
         }
+
+        let updates = NSMenuItem(
+            title: "Check for Updates…", action: #selector(checkForUpdates),
+            keyEquivalent: "")
+        updates.target = self
+        mainMenu.addItem(updates)
 
         let about = NSMenuItem(
             title: "About Desktop Pet", action: #selector(showAbout),
@@ -165,6 +185,7 @@ extension AppDelegate {
         }
         if menu === pluginMenu { populatePluginMenu() }
         if menu === sizeMenu { buildSizeMenu() }
+        if menu === iconMenu { populateIconMenu() }
     }
 
     func statusSummary() -> String {

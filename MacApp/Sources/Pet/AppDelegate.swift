@@ -45,6 +45,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var skinMenu = NSMenu()
     var pluginMenu = NSMenu()
     var sizeMenu = NSMenu()
+    var iconMenu = NSMenu()
+    /// A newer release's tag, when the quiet launch check found one.
+    var updateAvailable: String?
     var sizeSlider: NSSlider?
     var sizeReadout: NSMenuItem?
     var sizeResetItem: NSMenuItem?
@@ -126,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         installCommandLineTool()
         checkCommandLineReachable()
+        checkForUpdatesQuietly()
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(reloadFromPreferences),
             name: Notification.Name(Prefs.reloadNotification), object: nil)

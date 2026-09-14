@@ -10,6 +10,22 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+### Added
+
+- Agent plugins for **Antigravity**, **Cursor** and **pi**. Antigravity's
+  synchronous PreToolUse hook is answered with an allow decision so it never
+  stalls, Cursor gets flat command hooks in `~/.cursor/hooks.json` (IDE and
+  CLI both), and pi gets a generated TypeScript extension (pi 0.83+).
+- **Check for Updates** in the menu, plus a quiet once-a-day check that adds
+  an "Update available" row when a newer release is out. Nothing downloads
+  itself — both link to the releases page.
+- The menu bar icon can now be chosen: the app icon, the current skin
+  (sprite pets draw their own idle frame), or any SF Symbol.
+
+### Changed
+
+- The default menu bar icon is the app icon rather than the 🐈 emoji.
+
 ## [1.0.0] - 2026-09-12
 
 First release.

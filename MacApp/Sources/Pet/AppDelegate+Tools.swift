@@ -180,8 +180,8 @@ extension AppDelegate {
     func showTray() {
         guard statusItem == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "🐈"
         statusItem = item
+        applyTrayIcon()
         buildMenu()
     }
 
