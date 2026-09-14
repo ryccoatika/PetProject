@@ -166,6 +166,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             self.pos = CGPoint(x: origin.x + self.size.width / 2, y: origin.y)
             self.throwing = false  // grabbing it out of the air stops a throw
+            self.view.spin = 0
+            self.view.squash = 1
             self.recordDragSample()
             self.place()
         }

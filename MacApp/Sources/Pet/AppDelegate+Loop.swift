@@ -105,11 +105,18 @@ extension AppDelegate {
         let dt = last.t - first.t
         let vx = (last.p.x - first.p.x) / dt
         let vy = (last.p.y - first.p.y) / dt
-        guard hypot(vx, vy) > 400 else { return }  // below this it is a drop
+        let speed = hypot(vx, vy)  // pixels per second, before any cap
+        guard speed > 400 else { return }  // below this it is a drop
         // per-frame velocity, capped so a hard flick stays on screen
         throwVelocity = CGVector(
             dx: max(-60, min(60, vx / fps)), dy: max(-60, min(60, vy / fps)))
         throwing = true
+        view.spin = 0
+        view.squash = 1
+        // a cheeky readout, scaled to how hard it was flung
+        let shout =
+            speed > 3500 ? "🚀 to the moon!" : speed > 2000 ? "wheee!" : "whee!"
+        flash("\(shout)  \(Int(speed)) px/s")
     }
 
     /// One step of the toss: gravity, movement, and a damped bounce off the
@@ -127,20 +134,41 @@ extension AppDelegate {
         pos.x += throwVelocity.dx * tickScale
         pos.y += throwVelocity.dy * tickScale
 
+        // tumble in the air, faster the faster it flies
+        view.spin += throwVelocity.dx * 0.012 * tickScale
+        // ease any squash back out
+        view.squash += (1 - view.squash) * 0.25 * tickScale
+
         let bounce: CGFloat = 0.55
-        if pos.x < leftX { pos.x = leftX; throwVelocity.dx = abs(throwVelocity.dx) * bounce }
-        if pos.x > rightX { pos.x = rightX; throwVelocity.dx = -abs(throwVelocity.dx) * bounce }
-        if pos.y > ceiling { pos.y = ceiling; throwVelocity.dy = -abs(throwVelocity.dy) * bounce }
+        func splat() { view.squash = 0.7 }  // compress against whatever it hit
+        if pos.x < leftX {
+            pos.x = leftX
+            throwVelocity.dx = abs(throwVelocity.dx) * bounce
+            splat()
+        }
+        if pos.x > rightX {
+            pos.x = rightX
+            throwVelocity.dx = -abs(throwVelocity.dx) * bounce
+            splat()
+        }
+        if pos.y > ceiling {
+            pos.y = ceiling
+            throwVelocity.dy = -abs(throwVelocity.dy) * bounce
+            splat()
+        }
         if pos.y < floor {
             pos.y = floor
             throwVelocity.dy = -throwVelocity.dy * bounce
             throwVelocity.dx *= 0.7  // friction with the floor
+            splat()
         }
 
         // settled: on the floor, barely moving
         if pos.y <= floor + 1 && hypot(throwVelocity.dx, throwVelocity.dy) < 1.2 {
             throwing = false
             throwVelocity = .zero
+            view.spin = 0
+            view.squash = 1
             pos = clampToScreen(pos)
             savePos(force: true)
         }

@@ -18,6 +18,8 @@ final class PetView: NSView {
     var flashLabel: String? = nil
     var hop: CGFloat = 0  // celebrate bounce
     var held = false  // being dragged by the user
+    var spin: CGFloat = 0  // tumble while thrown, in radians
+    var squash: CGFloat = 1  // vertical squash on a bounce, 1 = none
 
     var dragBegin: (() -> Void)?
     var dragMove: ((NSPoint) -> Void)?  // receives the new window origin
@@ -131,6 +133,7 @@ final class PetView: NSView {
         ).fill()
 
         NSGraphicsContext.saveGraphicsState()
+        applyTumble(around: NSPoint(x: cx, y: base + 34))
         if !facingRight {
             let t = NSAffineTransform(); t.translateX(by: bounds.width, yBy: 0);
             t.scaleX(by: -1, yBy: 1); t.concat()
@@ -174,8 +177,27 @@ final class PetView: NSView {
     /// user just asked for ("chase on", "installing…") is still worth showing.
     func drawSprite(_ sprite: SpritePet) {
         let box = NSRect(x: 0, y: 16, width: bounds.width, height: bounds.height - 26)
-        sprite.draw(track: spriteTrack, frame: spriteFrame, in: box)
-        if let flashLabel { drawPill(flashLabel) }
+        if spin != 0 || squash != 1 {
+            NSGraphicsContext.saveGraphicsState()
+            applyTumble(around: NSPoint(x: bounds.midX, y: bounds.midY))
+            sprite.draw(track: spriteTrack, frame: spriteFrame, in: box)
+            NSGraphicsContext.restoreGraphicsState()
+        } else {
+            sprite.draw(track: spriteTrack, frame: spriteFrame, in: box)
+        }
+        if let flashLabel { drawPill(flashLabel) }  // never tumbles — stays legible
+    }
+
+    /// Rotate and squash the art about a point, for the thrown tumble. A no-op
+    /// when the pet is at rest.
+    private func applyTumble(around pivot: NSPoint) {
+        guard spin != 0 || squash != 1 else { return }
+        let t = NSAffineTransform()
+        t.translateX(by: pivot.x, yBy: pivot.y)
+        t.rotate(byRadians: spin)
+        t.scaleX(by: 2 - squash, yBy: squash)  // conserve bulk: wider as it flattens
+        t.translateX(by: -pivot.x, yBy: -pivot.y)
+        t.concat()
     }
 
     /// Which atlas row the current pose maps to.
