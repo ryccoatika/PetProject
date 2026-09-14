@@ -96,11 +96,11 @@ extension AppDelegate {
     }
 
     /// A quick flick on release throws the pet; a slow drop just leaves it.
-    /// Never while chasing — the cursor should own the pet there.
+    /// Works with chase on too — the pet sails, lands, then chase resumes and
+    /// it heads back to the cursor.
     func launchThrowIfFlicked() {
         defer { dragSamples.removeAll() }
-        guard !chaseWhenIdle, let first = dragSamples.first, let last = dragSamples.last,
-            last.t > first.t
+        guard let first = dragSamples.first, let last = dragSamples.last, last.t > first.t
         else { return }
         let dt = last.t - first.t
         let vx = (last.p.x - first.p.x) / dt

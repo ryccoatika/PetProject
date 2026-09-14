@@ -45,7 +45,7 @@ Unreleased, and merging into `main`.
 - **Streaks**: a longer, bigger celebration after a clean run of tools, and a
   glummer, longer failed pose during a rough patch.
 - **Throw the pet**: flick it and it sails, bounces off the screen edges and
-  settles (not while chase mode is on).
+  settles. With chase mode on it still throws, then heads back to the cursor.
 
 ### Changed
 

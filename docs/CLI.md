@@ -106,7 +106,7 @@ the pet simply idles, wanders and sleeps.
 - **Drag** the pet anywhere; the drop position is remembered.
 - **Double-click** toggles chase mode (follow the cursor while Claude is idle).
 - **Flick** the pet to throw it — it sails, bounces off the screen edges and
-  settles. (Not while chase mode is on.)
+  settles. With chase mode on it still throws, then heads back to the cursor.
 - **Menu bar 🐈**: live status, skin picker, chase toggle, quit.
 - Clicks only register on the creature itself; everywhere else in its window
   they pass through to the app underneath.
