@@ -7,6 +7,8 @@ a `!` when it needs you, and celebrates when a turn ends.
 Optional. Without it the pet still runs — it just idles, wanders and sleeps.
 
 Supported agents: **Claude Code**, **Codex**, **Gemini CLI** and **opencode**.
+Claude Code counts whether it runs in the terminal or inside the
+[Claude Desktop app](#claude-desktop).
 
 ## Install
 
@@ -79,6 +81,17 @@ twice.
 | `Notification` / `PermissionRequest` | stands up, `!` bubble, "needs you" | Waiting |
 | `Stop` | celebrates for a moment, then settles | Jumping |
 | `SessionEnd` | back to idle | Idle |
+
+### Claude Desktop
+
+The Claude Desktop app's agent mode runs a bundled Claude Code pointed at
+`~/.claude`, so the ordinary `claude` plugin covers it: install once and the
+pet reacts to Desktop agent sessions too, with nothing extra to set up.
+
+Plain chat conversations are different. They run remotely, and the app exposes
+no hooks, no per-message logs and no event API a local process could subscribe
+to, so the pet cannot react to them. If that ever changes, support would land
+as a new `HookHost` like any other agent.
 
 ### Failures
 

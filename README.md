@@ -10,7 +10,9 @@ It types at a tiny laptop while a tool runs, thinks between steps, raises a `!`
 when the agent needs you, and celebrates when a turn finishes. The rest of the
 time it wanders, grooms itself and falls asleep.
 
-Works with **Claude Code**, **Codex**, **Gemini CLI** and **opencode**.
+Works with **Claude Code**, **Codex**, **Gemini CLI** and **opencode** —
+including Claude Code inside the
+[Claude Desktop app](docs/PLUGINS.md#claude-desktop).
 
 <img src="docs/images/poses.png" width="680" alt="The pet thinking, working, alerting, celebrating and asleep">
 
