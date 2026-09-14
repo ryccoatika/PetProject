@@ -113,6 +113,7 @@ extension AppDelegate {
             Self.isNewer(stored, than: Build.version)
         {
             updateAvailable = stored
+            buildMenu()  // the menu was built before this ran
         } else {
             Prefs.store.removeObject(forKey: "petUpdateAvailable")
         }
