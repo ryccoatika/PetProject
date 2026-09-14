@@ -27,10 +27,11 @@ Unreleased, and merging into `main`.
 - **Activity bubbles**: a card above the pet's head names the project an
   agent is working in and says what is actually happening — the prompt it
   was given, the command it is running, the file it is editing — and
-  concurrent sessions stack their cards. **Click a card** to open that
-  session's folder. Toggle from the menu (**Show Activity Bubbles**) or with
-  `pet bubbles show | hide`. Driven by per-session files in
-  `<configDir>/sessions/`, written by the same hooks.
+  concurrent sessions stack their cards. **Click a card** to raise the
+  terminal or IDE running that session (falling back to opening its folder).
+  Toggle from the menu (**Show Activity Bubbles**) or with `pet bubbles
+  show | hide`. Driven by per-session files in `<configDir>/sessions/`,
+  written by the same hooks.
 - **Chime When an Agent Needs You** (menu, off by default): a sound the
   moment any session starts waiting on a permission.
 - The **menu bar icon** carries a live session count, red with a `!` when one

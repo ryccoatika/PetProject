@@ -182,13 +182,15 @@ the same event is also written to
 
     ~/.config/pet/sessions/<session-id>
 
-    EVENT|TOOL|EPOCH|PROJECT|DETAIL|CWD
+    EVENT|TOOL|EPOCH|PROJECT|DETAIL|CWD|APP
 
 where PROJECT is the last component of the payload's working directory
 (`cwd`, `workspace_roots` or `workspacePaths`), DETAIL is one short human
 line from the payload — the prompt, a tool call's `description`, the file or
-the command — and CWD is that working directory base64-encoded, so clicking a
-bubble can open it. Newlines and `|` are cleaned out of the plain fields. One
+the command — CWD is that working directory, and APP is the bundle id and pid
+of the terminal or IDE running the agent (found by walking `pet event`'s
+parent-process chain), so clicking a bubble can raise it. CWD and APP are
+base64-encoded; newlines and `|` are cleaned out of the plain fields. One
 file per session means concurrent agents never fight over a file. `SessionEnd`
 deletes the file, and anything a day old is cleaned up on read.
 

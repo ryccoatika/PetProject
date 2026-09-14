@@ -18,6 +18,13 @@ struct AgentSession {
     let detail: String
     /// The session's working directory, for click-to-open. May be empty.
     let cwd: String
+    /// The terminal or IDE running the agent, so a click can raise it.
+    /// Empty when it could not be determined.
+    let appBundleID: String
+    let appPID: Int32
+
+    /// A click can act when there is an app to raise or a folder to open.
+    var clickable: Bool { !appBundleID.isEmpty || !cwd.isEmpty }
 
     var age: TimeInterval { Date().timeIntervalSince1970 - stamp }
 
@@ -68,14 +75,19 @@ enum SessionStore {
             let parts = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 .components(separatedBy: "|")
             guard parts.count >= 3, let ts = TimeInterval(parts[2]) else { continue }
-            let cwd =
-                parts.count > 5
-                ? (Data(base64Encoded: parts[5]).flatMap { String(data: $0, encoding: .utf8) } ?? "")
-                : ""
+            func decode(_ i: Int) -> String {
+                parts.count > i
+                    ? (Data(base64Encoded: parts[i]).flatMap { String(data: $0, encoding: .utf8) }
+                        ?? "")
+                    : ""
+            }
+            let app = decode(6).split(separator: ",", maxSplits: 1).map(String.init)
             let session = AgentSession(
                 id: name, event: parts[0], tool: parts[1], stamp: ts,
                 project: parts.count > 3 ? parts[3] : "",
-                detail: parts.count > 4 ? parts[4] : "", cwd: cwd)
+                detail: parts.count > 4 ? parts[4] : "", cwd: decode(5),
+                appBundleID: app.first ?? "",
+                appPID: app.count > 1 ? (Int32(app[1]) ?? 0) : 0)
             if session.age > 86_400 {
                 try? FileManager.default.removeItem(at: file)  // ended without a SessionEnd
                 continue
@@ -116,7 +128,7 @@ final class BubbleView: NSView {
         let local = convert(point, from: superview)
         let slot = Self.cardHeight + Self.spacing
         let i = Int(local.y / slot)
-        guard i >= 0, i < sessions.count, !sessions[i].cwd.isEmpty else { return nil }
+        guard i >= 0, i < sessions.count, sessions[i].clickable else { return nil }
         if local.y - CGFloat(i) * slot > Self.cardHeight { return nil }
         return self
     }
@@ -249,10 +261,27 @@ extension AppDelegate {
         return window
     }
 
-    /// Open a clicked session's project folder in Finder.
+    /// Raise the terminal or IDE running a clicked session — bringing its
+    /// window and Space to the front. Falls back to opening the project
+    /// folder in Finder when the app is unknown or gone.
     func openSession(_ session: AgentSession) {
-        guard !session.cwd.isEmpty else { return }
-        NSWorkspace.shared.open(URL(fileURLWithPath: session.cwd))
+        if session.appPID > 0,
+            let app = NSRunningApplication(processIdentifier: session.appPID)
+        {
+            app.activate(options: [.activateAllWindows])
+            return
+        }
+        if !session.appBundleID.isEmpty,
+            let app = NSRunningApplication.runningApplications(
+                withBundleIdentifier: session.appBundleID
+            ).first
+        {
+            app.activate(options: [.activateAllWindows])
+            return
+        }
+        if !session.cwd.isEmpty {
+            NSWorkspace.shared.open(URL(fileURLWithPath: session.cwd))
+        }
     }
 
     /// Chime once when a session first starts waiting for the user. Only

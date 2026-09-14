@@ -106,9 +106,13 @@ enum CLI {
                 // cwd is base64'd so a path with "|" or spaces survives the
                 // pipe-delimited line intact.
                 let encodedCwd = Data(cwd.utf8).base64EncodedString()
+                // the terminal or IDE running this agent, so a click can bring
+                // its window (and Space) to the front — "bundleID,pid".
+                let app = owningApp().map { "\($0.bundleID),\($0.pid)" } ?? ""
+                let encodedApp = Data(app.utf8).base64EncodedString()
                 let entry =
                     "\(recorded)|\(tool)|\(Int(Date().timeIntervalSince1970))"
-                    + "|\(project)|\(detail)|\(encodedCwd)\n"
+                    + "|\(project)|\(detail)|\(encodedCwd)|\(encodedApp)\n"
                 try? entry.write(to: file, atomically: true, encoding: .utf8)
             }
         }
@@ -151,6 +155,35 @@ enum CLI {
         if let out = try? JSONSerialization.data(withJSONObject: all, options: [.sortedKeys]) {
             try? out.write(to: file)
         }
+    }
+
+    /// The GUI app that ultimately launched this agent — the terminal or IDE
+    /// window the user would want raised. Walks the parent-process chain from
+    /// `pet event` (child of the agent, child of the shell, child of the app)
+    /// to the first ancestor that is a regular app with a bundle id.
+    static func owningApp() -> (bundleID: String, pid: Int32)? {
+        var pid = getppid()
+        for _ in 0..<12 {  // a safety bound on the walk
+            guard pid > 1 else { break }
+            if let app = NSRunningApplication(processIdentifier: pid),
+                app.activationPolicy == .regular, let bundleID = app.bundleIdentifier
+            {
+                return (bundleID, pid)
+            }
+            guard let parent = parentPID(of: pid), parent != pid else { break }
+            pid = parent
+        }
+        return nil
+    }
+
+    /// The parent PID of a process, via sysctl — no private API.
+    private static func parentPID(of pid: Int32) -> Int32? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        let result = sysctl(&mib, u_int(mib.count), &info, &size, nil, 0)
+        guard result == 0, size > 0 else { return nil }
+        return info.kp_eproc.e_ppid
     }
 
     /// yyyy-MM-dd in the local calendar, without pulling in a DateFormatter.

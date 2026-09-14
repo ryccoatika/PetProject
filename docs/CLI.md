@@ -72,9 +72,11 @@ session in `<configDir>/sessions/<session-id>`, holding
 `EVENT|TOOL|EPOCH|PROJECT|DETAIL|CWD` (the last base64-encoded). Those drive
 the activity bubbles above the pet's head — one card per session naming the
 project and what is actually happening (the prompt, the command, the file),
-so two projects running at once stack two bubbles. **Click a card** to open
-that session's folder in Finder. `SessionEnd` retires a session's file; stale
-ones age out. The menu has **Show Activity Bubbles**, and `pet bubbles
+so two projects running at once stack two bubbles. **Click a card** to raise
+the terminal or IDE running that session — bringing its window, and its
+Space, to the front (it falls back to opening the folder in Finder when the
+app cannot be found). `SessionEnd` retires a session's file; stale ones age
+out. The menu has **Show Activity Bubbles**, and `pet bubbles
 show | hide` is the same switch.
 
 A few things follow from having every session in view:
