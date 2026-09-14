@@ -6,9 +6,9 @@ a `!` when it needs you, and celebrates when a turn ends.
 
 Optional. Without it the pet still runs — it just idles, wanders and sleeps.
 
-Supported agents: **Claude Code**, **Codex**, **Gemini CLI** and **opencode**.
-Claude Code counts whether it runs in the terminal or inside the
-[Claude Desktop app](#claude-desktop).
+Supported agents: **Claude Code**, **Codex**, **Gemini CLI**, **opencode**,
+**Antigravity**, **Cursor** and **pi**. Claude Code counts whether it runs in
+the terminal or inside the [Claude Desktop app](#claude-desktop).
 
 ## Install
 
@@ -22,6 +22,7 @@ Or from the terminal:
 
     pet plugin install            every agent found on this machine
     pet plugin install claude     claude | codex | gemini | opencode
+                                  | antigravity | cursor | pi
     pet plugin status
     pet plugin uninstall [agent]  with no agent: every one of them
 
@@ -31,35 +32,41 @@ to keep in step.
 
 ## What it registers
 
-Three of the four take JSON config listing commands to run, with the same
-shape — a `hooks` object keyed by event name, each holding matcher groups — so
-one implementation serves them. The command registered is the CLI itself:
+Five of the seven take JSON config listing commands to run. Claude Code,
+Codex and Gemini CLI share one shape — a `hooks` object keyed by event name,
+each holding matcher groups — Cursor puts commands directly in each event's
+list, and Antigravity keys the top level by hook name, so the pet owns exactly
+one entry there. The command registered is always the CLI itself:
 
     /path/to/pet event <PetEventName>
 
 The argument is always the pet's own event name, so each agent's vocabulary is
-translated at install time and the app never has to learn four of them.
+translated at install time and the app never has to learn seven of them.
 
-| | Claude Code | Codex | Gemini CLI | opencode |
-|---|---|---|---|---|
-| config | `~/.claude/settings.json` | `~/.codex/hooks.json` | `~/.gemini/settings.json` | `~/.config/opencode/plugin/pet.js` |
-| mechanism | command hooks | command hooks | command hooks | JavaScript plugin |
-| payload | JSON on stdin | JSON on stdin | JSON on stdin | handler arguments |
-| `timeout` unit | seconds | seconds | **milliseconds** | n/a |
-| async | yes | yes | **no — hooks block** | yes (handlers are async) |
-| matcher | `"*"` on tool events | omitted | omitted | n/a |
+| | Claude Code | Codex | Gemini CLI | Antigravity | Cursor |
+|---|---|---|---|---|---|
+| config | `~/.claude/settings.json` | `~/.codex/hooks.json` | `~/.gemini/settings.json` | `~/.gemini/config/hooks.json` | `~/.cursor/hooks.json` |
+| payload | JSON on stdin | JSON on stdin | JSON on stdin | JSON on stdin, camelCase | JSON on stdin |
+| `timeout` unit | seconds | seconds | **milliseconds** | seconds | seconds |
+| async | yes | yes | **no — hooks block** | **no — see below** | after-events never block |
+| matcher | `"*"` on tool events | omitted | omitted | omitted | omitted |
+
+opencode and pi have no command hooks; they load script plugins instead, so
+the installer writes one — `~/.config/opencode/plugin/pet.js` (JavaScript) and
+`~/.pi/agent/extensions/pet.ts` (TypeScript, needs pi 0.83+). Both write the
+state file directly from their handlers, so they cost nothing per event.
 
 Event name mapping:
 
-| Pet | Claude Code | Codex | Gemini CLI | opencode |
-|---|---|---|---|---|
-| `SessionStart` | `SessionStart` | `SessionStart` | `SessionStart` | `session.created` |
-| `UserPromptSubmit` | `UserPromptSubmit` | `UserPromptSubmit` | `BeforeAgent` | — |
-| `PreToolUse` | `PreToolUse` | `PreToolUse` | `BeforeTool` | `tool.execute.before` |
-| `PostToolUse` | `PostToolUse` | `PostToolUse` | `AfterTool` | `tool.execute.after` |
-| `Notification` | `Notification` | `PermissionRequest` | `Notification` | `permission.asked` |
-| `Stop` | `Stop` | `Stop` | `AfterAgent` | `session.idle` |
-| `SessionEnd` | `SessionEnd` | `SessionEnd` | `SessionEnd` | — |
+| Pet | Claude Code | Codex | Gemini CLI | Antigravity | Cursor | opencode | pi |
+|---|---|---|---|---|---|---|---|
+| `SessionStart` | `SessionStart` | `SessionStart` | `SessionStart` | — | `sessionStart` | `session.created` | `session_start` |
+| `UserPromptSubmit` | `UserPromptSubmit` | `UserPromptSubmit` | `BeforeAgent` | `PreInvocation` | `beforeSubmitPrompt` | — | `input` |
+| `PreToolUse` | `PreToolUse` | `PreToolUse` | `BeforeTool` | `PreToolUse` | `preToolUse` | `tool.execute.before` | `tool_execution_start` |
+| `PostToolUse` | `PostToolUse` | `PostToolUse` | `AfterTool` | `PostToolUse` | `postToolUse` | `tool.execute.after` | `tool_execution_end` |
+| `Notification` | `Notification` | `PermissionRequest` | `Notification` | — | — | `permission.asked` | `ui_prompt_start` |
+| `Stop` | `Stop` | `Stop` | `AfterAgent` | `PostInvocation` | `stop` | `session.idle` | `agent_end` |
+| `SessionEnd` | `SessionEnd` | `SessionEnd` | `SessionEnd` | `Stop` | `sessionEnd` | — | `session_shutdown` |
 
 ### opencode
 
@@ -82,6 +89,41 @@ twice.
 | `Stop` | celebrates for a moment, then settles | Jumping |
 | `SessionEnd` | back to idle | Idle |
 
+### Antigravity
+
+Antigravity's hooks file lives under `~/.gemini`, but it is not Gemini CLI's:
+since 1.1 Antigravity reads only `~/.gemini/config/hooks.json`, in its own
+format, and silently ignores `settings.json`. Its hooks are synchronous, and
+`PreToolUse` waits for a verdict on stdout — so that one event is registered
+as `pet event PreToolUse --allow`, which records the activity and prints
+`{"decision":"allow"}`. At ~29 ms per event the wait is invisible. There is no
+SessionStart or Notification equivalent, so the pet wakes on the first prompt
+and never raises the `!` bubble for Antigravity.
+
+Because `~/.gemini` also belongs to Gemini CLI, the installer decides whether
+Antigravity is present by looking for the app itself (`Antigravity.app` or
+`~/.antigravity`), not for the config folder.
+
+### Cursor
+
+One file drives both the IDE's agent and the `agent` CLI:
+`~/.cursor/hooks.json`, with `version: 1` and commands sitting directly in
+each event's list. Cursor hooks fail open — a hook that prints nothing never
+blocks anything — and the file is watched, so changes apply without a restart.
+There is no Notification equivalent. The CLI also merges hooks from Claude
+Code's settings.json, so a tool event there can fire the pet twice — harmless,
+as both write the same state line.
+
+### pi
+
+pi has no command hooks — like opencode it loads script plugins, so the
+installer writes a TypeScript extension to `~/.pi/agent/extensions/pet.ts`
+that writes the state file directly. It needs pi 0.83 or later, where the
+extension event bus became public. pi picks the file up on the next session or
+`/reload`. A failed tool arrives as `isError` on `tool_execution_end` and is
+recorded as a failure, and `ui_prompt_start` — pi asking the user something —
+raises the `!` bubble.
+
 ### Claude Desktop
 
 The Claude Desktop app's agent mode runs a bundled Claude Code pointed at
@@ -95,17 +137,20 @@ as a new `HookHost` like any other agent.
 
 ### Failures
 
-Only Claude Code has dedicated failure events (`PostToolUseFailure` and
-`StopFailure`), and both are registered. Everywhere else the failure is in the
-result payload, so `pet event` reads it: a `tool_response` carrying an `error`
-or `success: false`, or a top-level `error`, is recorded as a failure whatever
-the agent called the event. A null `error` does not count. opencode reports
-turn failures through its own `session.error`.
+Claude Code and Cursor have dedicated failure events (`PostToolUseFailure`,
+and `StopFailure` on Claude Code), and they are registered. Everywhere else
+the failure is in the result payload, so it is read where the payload is read:
+`pet event` treats a `tool_response` carrying an `error` or `success: false`,
+or a top-level `error` (Antigravity's shape), as a failure whatever the agent
+called the event, and the pi extension does the same with `isError`. A null
+`error` does not count. opencode reports turn failures through its own
+`session.error`.
 
 ## Other config folders
 
-Each agent has one default folder — `~/.claude` and `~/.codex`. To use a
-different one, pass `--path`:
+Each agent has one default config location — `~/.claude`, `~/.codex`,
+`~/.gemini`, `~/.cursor`, `~/.pi/agent` and so on. To use a different one,
+pass `--path`:
 
     pet plugin install claude --path ~/.claude-account1
     pet plugin uninstall claude --path ~/.claude-account1
@@ -151,6 +196,9 @@ producers — a mobile pet would define its own.
 
 ## Adding another agent
 
-`HookHost` in `../MacApp/Sources/HookHost.swift` describes an agent: its config files, its
-event names and whether each takes a matcher. Adding one is a new static
+`HookHost` in `../MacApp/Sources/Pet/HookHost.swift` describes an agent: its
+config files, its event names, whether each takes a matcher, and which of the
+three JSON dialects its config uses (nested matcher groups, flat command
+lists, or a top level keyed by hook name). An agent with no command hooks gets
+a generated script instead, like opencode and pi. Adding one is a new static
 property plus an entry in `HookHost.all`.

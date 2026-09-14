@@ -39,16 +39,26 @@ enum CLI {
         return URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().path
     }
 
-    /// Called by Claude Code hooks. Reads the hook payload on stdin and
+    /// Called by the agents' hooks. Reads the hook payload on stdin and
     /// records one line of activity. Always exits 0 and never blocks a turn.
-    static func event(_ name: String?) -> Never {
-        guard let name else { exit(0) }
+    /// With --allow it also prints an allow decision — Antigravity's
+    /// PreToolUse hook is synchronous and waits for one.
+    static func event(_ args: [String]) -> Never {
+        let allow = args.contains("--allow")
+        func finish() -> Never {
+            if allow { print("{\"decision\":\"allow\"}") }
+            exit(0)
+        }
+        guard let name = args.first(where: { !$0.hasPrefix("-") }) else { finish() }
         var tool = ""
         var recorded = name
         if isatty(FileHandle.standardInput.fileDescriptor) == 0 {  // only when piped
             let data = FileHandle.standardInput.readDataToEndOfFile()
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                tool = json["tool_name"] as? String ?? ""
+                // Antigravity nests the name inside a camelCase toolCall.
+                tool =
+                    json["tool_name"] as? String
+                    ?? (json["toolCall"] as? [String: Any])?["name"] as? String ?? ""
                 // Only Claude Code has a dedicated failure event. Everywhere
                 // else the failure is in the result payload, so read it and
                 // report the same thing.
@@ -59,7 +69,7 @@ enum CLI {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let line = "\(recorded)|\(tool)|\(Int(Date().timeIntervalSince1970))\n"
         try? line.write(to: dir.appendingPathComponent("state"), atomically: true, encoding: .utf8)
-        exit(0)
+        finish()
     }
 
     /// Did the tool this event describes fail? Agents word it differently:
@@ -116,6 +126,7 @@ enum CLI {
             AGENT PLUGIN
               plugin install [agent]   make the pet react to your coding agent
                                        agent = claude | codex | gemini | opencode
+                                             | antigravity | cursor | pi
               plugin uninstall [agent] default: every agent found
               plugin status
               --path <dir>             a config folder other than the default;
@@ -148,7 +159,7 @@ enum CLI {
         case "pets": pets(args)
         case "skin": setSkin(args.first)
         case "config": config(args)
-        case "event": event(args.first)
+        case "event": event(args)
         case "plugin": plugin(args)
         case "uninstall": uninstall(all: args.contains("--all"))
         default: fail("unknown command \"\(cmd)\" — try: pet help")

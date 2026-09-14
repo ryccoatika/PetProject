@@ -36,7 +36,9 @@ extension CLI {
         var chosen: [HookHost]
         if let agent {
             guard let host = HookHost.named(agent) else {
-                fail("unknown agent \"\(agent)\" — use claude or codex")
+                fail(
+                    "unknown agent \"\(agent)\" — use "
+                        + HookHost.all.map(\.id).joined(separator: " | "))
             }
             chosen = [host]
         } else {
@@ -45,7 +47,7 @@ extension CLI {
             }
             chosen = HookHost.all.filter(\.isPresent)
             if chosen.isEmpty {
-                fail("no supported agent found (looked for ~/.claude and ~/.codex)")
+                fail("no supported agent found (\(HookHost.all.map(\.id).joined(separator: ", ")))")
             }
         }
         return paths.isEmpty ? chosen : chosen.map { $0.targeting(paths) }
@@ -64,7 +66,9 @@ extension CLI {
         case "status":
             HookPlugin.status()
         default:
-            fail("usage: pet plugin [install | uninstall | status] [claude | codex] [--path <dir>]")
+            fail(
+                "usage: pet plugin [install | uninstall | status] "
+                    + "[\(HookHost.all.map(\.id).joined(separator: " | "))] [--path <dir>]")
         }
     }
 

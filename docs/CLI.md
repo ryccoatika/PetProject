@@ -18,6 +18,7 @@ link too, pointing it at the copy in `~/Applications`.
     pet config set <path>   move it
     pet config reset        back to ~/.config/pet
     pet plugin install [agent]   claude | codex | gemini | opencode
+                                 | antigravity | cursor | pi
     pet plugin uninstall [agent] | pet plugin status
     pet plugin install claude --path <dir>   a non-default config folder
     pet uninstall [--all]   remove app + CLI (--all also removes the config)
@@ -65,11 +66,13 @@ The pet polls a single file and maps what it finds to a pose:
 | nothing recent | sitting → grooming → asleep |
 
 `pet event <name>` is what writes that line: agent hooks call the CLI
-directly, so there is no generated shell script anywhere. The app itself knows
+directly, so there is no generated shell script anywhere. With `--allow` it
+also prints `{"decision":"allow"}` — for agents whose tool hooks are
+synchronous and wait for a verdict, like Antigravity. The app itself knows
 nothing about any particular agent — anything that writes that line can drive
-it. Claude Code, Codex, Gemini CLI and opencode are supported out of the box;
-see [Agent plugins](PLUGINS.md). Without a plugin the pet simply idles, wanders and
-sleeps.
+it. Claude Code, Codex, Gemini CLI, opencode, Antigravity, Cursor and pi are
+supported out of the box; see [Agent plugins](PLUGINS.md). Without a plugin
+the pet simply idles, wanders and sleeps.
 
 ## Interaction
 

@@ -48,10 +48,79 @@ enum HookPlugin {
 
     enum MergeResult { case changed(Int), unchanged, unreadable }
 
+    /// The command registered for one event.
+    static func command(for event: HookEvent) -> String {
+        "\(command) \(event.pet)" + (event.flags.map { " \($0)" } ?? "")
+    }
+
+    /// Merge our entry into one event's matcher-group list, as the nested and
+    /// named dialects lay them out. Returns how many changes were made.
+    private static func mergeGroups(
+        _ list: inout [[String: Any]], event: HookEvent, timeout: Int,
+        supportsAsync: Bool, remove: Bool
+    ) -> Int {
+        var changed = 0
+        let want = command(for: event)
+        if remove {
+            let kept = list.filter { !isOurs($0) }
+            if kept.count != list.count { changed += 1 }
+            list = kept
+            return changed
+        }
+        // drop our entries that point elsewhere (an older install)
+        list = list.filter { group in
+            guard isOurs(group) else { return true }
+            let correct = (group["hooks"] as? [[String: Any]] ?? [])
+                .contains { ($0["command"] as? String) == want }
+            if !correct { changed += 1 }
+            return correct
+        }
+        if !list.contains(where: isOurs) {
+            var handler: [String: Any] = [
+                "type": "command", "command": want,
+                "timeout": timeout,
+            ]
+            if supportsAsync { handler["async"] = true }  // only where supported
+            var entry: [String: Any] = ["hooks": [handler]]
+            if let matcher = event.matcher { entry["matcher"] = matcher }
+            list.append(entry)
+            changed += 1
+        }
+        return changed
+    }
+
+    /// The same for the flat dialect, where handlers sit directly in the list.
+    private static func mergeFlat(
+        _ list: inout [[String: Any]], event: HookEvent, timeout: Int, remove: Bool
+    ) -> Int {
+        var changed = 0
+        let want = command(for: event)
+        let ours = { (handler: [String: Any]) in
+            isOurCommand(handler["command"] as? String ?? "")
+        }
+        if remove {
+            let kept = list.filter { !ours($0) }
+            if kept.count != list.count { changed += 1 }
+            list = kept
+            return changed
+        }
+        list = list.filter { handler in
+            guard ours(handler) else { return true }
+            let correct = (handler["command"] as? String) == want
+            if !correct { changed += 1 }
+            return correct
+        }
+        if !list.contains(where: ours) {
+            list.append(["command": want, "timeout": timeout])
+            changed += 1
+        }
+        return changed
+    }
+
     /// Reconciles our entries in one config file and leaves the rest alone.
     static func merge(
         file url: URL, events: [HookEvent], timeout: Int,
-        supportsAsync: Bool, remove: Bool
+        supportsAsync: Bool, dialect: HookHost.Dialect, remove: Bool
     ) -> MergeResult {
         var root: [String: Any] = [:]
         if let data = try? Data(contentsOf: url), !data.isEmpty {
@@ -61,51 +130,72 @@ enum HookPlugin {
             }
             root = parsed
         }
-        var hooks = root["hooks"] as? [String: Any] ?? [:]
         var changed = 0
 
-        for event in events {
-            var list = hooks[event.host] as? [[String: Any]] ?? []
-            let want = "\(command) \(event.pet)"
-
-            if remove {
-                let kept = list.filter { !isOurs($0) }
-                if kept.count != list.count { changed += 1 }
-                if kept.isEmpty {
+        switch dialect {
+        case .nested:
+            var hooks = root["hooks"] as? [String: Any] ?? [:]
+            for event in events {
+                var list = hooks[event.host] as? [[String: Any]] ?? []
+                changed += mergeGroups(
+                    &list, event: event, timeout: timeout,
+                    supportsAsync: supportsAsync, remove: remove)
+                if list.isEmpty {
                     hooks.removeValue(forKey: event.host)
                 } else {
-                    hooks[event.host] = kept
+                    hooks[event.host] = list
                 }
-                continue
+            }
+            if remove && hooks.isEmpty {
+                root.removeValue(forKey: "hooks")
+            } else {
+                root["hooks"] = hooks
             }
 
-            // drop our entries that point elsewhere (an older install)
-            list = list.filter { group in
-                guard isOurs(group) else { return true }
-                let correct = (group["hooks"] as? [[String: Any]] ?? [])
-                    .contains { ($0["command"] as? String) == want }
-                if !correct { changed += 1 }
-                return correct
+        case .named(let key):
+            var entry = root[key] as? [String: Any] ?? [:]
+            for event in events {
+                var list = entry[event.host] as? [[String: Any]] ?? []
+                changed += mergeGroups(
+                    &list, event: event, timeout: timeout,
+                    supportsAsync: supportsAsync, remove: remove)
+                if list.isEmpty {
+                    entry.removeValue(forKey: event.host)
+                } else {
+                    entry[event.host] = list
+                }
             }
-            if !list.contains(where: isOurs) {
-                var handler: [String: Any] = [
-                    "type": "command", "command": want,
-                    "timeout": timeout,
-                ]
-                if supportsAsync { handler["async"] = true }  // Gemini has no async flag
-                var entry: [String: Any] = ["hooks": [handler]]
-                if let matcher = event.matcher { entry["matcher"] = matcher }
-                list.append(entry)
-                changed += 1
+            if remove {
+                // drop the whole entry once no event list is left in it
+                if entry.values.contains(where: { $0 is [[String: Any]] }) {
+                    root[key] = entry
+                } else {
+                    root.removeValue(forKey: key)
+                }
+            } else {
+                entry["enabled"] = true
+                root[key] = entry
             }
-            hooks[event.host] = list
+
+        case .flat:
+            var hooks = root["hooks"] as? [String: Any] ?? [:]
+            for event in events {
+                var list = hooks[event.host] as? [[String: Any]] ?? []
+                changed += mergeFlat(&list, event: event, timeout: timeout, remove: remove)
+                if list.isEmpty {
+                    hooks.removeValue(forKey: event.host)
+                } else {
+                    hooks[event.host] = list
+                }
+            }
+            if remove && hooks.isEmpty {
+                root.removeValue(forKey: "hooks")
+            } else {
+                root["hooks"] = hooks
+                if root["version"] == nil { root["version"] = 1 }  // Cursor requires it
+            }
         }
 
-        if remove && hooks.isEmpty {
-            root.removeValue(forKey: "hooks")
-        } else {
-            root["hooks"] = hooks
-        }
         guard changed > 0 else { return .unchanged }
 
         if FileManager.default.fileExists(atPath: url.path) {
@@ -128,12 +218,25 @@ enum HookPlugin {
         return .changed(changed)
     }
 
-    static func registeredCount(in file: URL) -> Int {
+    static func registeredCount(in file: URL, dialect: HookHost.Dialect = .nested) -> Int {
         guard let data = try? Data(contentsOf: file),
-            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let hooks = root["hooks"] as? [String: Any]
+            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return 0 }
-        return hooks.values.reduce(0) { total, value in
+        let container: [String: Any]
+        switch dialect {
+        case .nested, .flat:
+            container = root["hooks"] as? [String: Any] ?? [:]
+        case .named(let key):
+            container = root[key] as? [String: Any] ?? [:]
+        }
+        if case .flat = dialect {
+            return container.values.reduce(0) { total, value in
+                total
+                    + ((value as? [[String: Any]] ?? [])
+                        .filter { isOurCommand($0["command"] as? String ?? "") }.count)
+            }
+        }
+        return container.values.reduce(0) { total, value in
             total + ((value as? [[String: Any]] ?? []).filter(isOurs).count)
         }
     }
@@ -141,8 +244,8 @@ enum HookPlugin {
     static func isRegistered(_ host: HookHost) -> Bool {
         switch host.kind {
         case .json:
-            return host.files.contains { registeredCount(in: $0) > 0 }
-        case .plugin(let file, let alternates):
+            return host.files.contains { registeredCount(in: $0, dialect: host.dialect) > 0 }
+        case .plugin(let file, let alternates, _):
             return ([file] + alternates).contains {
                 FileManager.default.fileExists(atPath: $0.path)
             }
@@ -154,7 +257,7 @@ enum HookPlugin {
     static func apply(_ host: HookHost, remove: Bool) {
         print("\(host.name):")
         switch host.kind {
-        case .json(let files, let events, let timeout, let supportsAsync):
+        case .json(let files, let events, let timeout, let supportsAsync, let dialect):
             for file in files {
                 let label = CLI.tilde(file.deletingLastPathComponent())
                 if remove, !FileManager.default.fileExists(atPath: file.path) {
@@ -163,7 +266,7 @@ enum HookPlugin {
                 }
                 switch merge(
                     file: file, events: events, timeout: timeout,
-                    supportsAsync: supportsAsync, remove: remove)
+                    supportsAsync: supportsAsync, dialect: dialect, remove: remove)
                 {
                 case .unreadable:
                     print("  !  \(label) — \(file.lastPathComponent) unreadable, left untouched")
@@ -172,7 +275,7 @@ enum HookPlugin {
                     print("  ✓  \(label) — \(n) event(s) \(remove ? "removed" : "updated")")
                 }
             }
-        case .plugin(let file, let alternates):
+        case .plugin(let file, let alternates, let source):
             if remove {
                 var removed = false
                 for url in [file] + alternates
@@ -193,7 +296,7 @@ enum HookPlugin {
                 try FileManager.default.createDirectory(
                     at: file.deletingLastPathComponent(),
                     withIntermediateDirectories: true)
-                try OpencodePlugin.source.write(to: file, atomically: true, encoding: .utf8)
+                try source.write(to: file, atomically: true, encoding: .utf8)
                 print("  ✓  \(CLI.tilde(file))")
             } catch {
                 print("  !  could not write \(CLI.tilde(file)): \(error.localizedDescription)")
@@ -238,18 +341,20 @@ enum HookPlugin {
     }
 
     static func status() {
-        print("hook command: \(command) <event>   (opencode writes the state file directly)")
+        print(
+            "hook command: \(command) <event>   "
+                + "(opencode and pi write the state file directly)")
         for host in HookHost.all {
             print("")
             print("\(host.name)\(host.isPresent ? "" : "  (not installed)"):")
             switch host.kind {
-            case .json(let files, _, _, _):
+            case .json(let files, _, _, _, _):
                 for file in files {
                     let label = CLI.tilde(file.deletingLastPathComponent())
-                    let n = registeredCount(in: file)
+                    let n = registeredCount(in: file, dialect: host.dialect)
                     print("  \(label): \(n == 0 ? "not registered" : "\(n) hook entries")")
                 }
-            case .plugin(let file, let alternates):
+            case .plugin(let file, let alternates, _):
                 let installed = ([file] + alternates).filter {
                     FileManager.default.fileExists(atPath: $0.path)
                 }

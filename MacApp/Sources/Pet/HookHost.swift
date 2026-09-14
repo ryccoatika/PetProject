@@ -9,26 +9,46 @@ struct HookEvent {
     let host: String
     let pet: String
     let matcher: String?
-    init(_ host: String, as pet: String? = nil, matcher: String? = nil) {
+    /// Extra arguments after the event name, e.g. "--allow" for hosts whose
+    /// tool events block until they hear a decision on stdout.
+    let flags: String?
+    init(_ host: String, as pet: String? = nil, matcher: String? = nil, flags: String? = nil) {
         self.host = host
         self.pet = pet ?? host
         self.matcher = matcher
+        self.flags = flags
     }
 }
 
 /// A coding agent whose lifecycle hooks can drive the pet.
 ///
-/// Most agents take JSON config listing commands to run. opencode instead
-/// loads JavaScript plugins, so it gets a generated plugin file.
+/// Most agents take JSON config listing commands to run. opencode and pi
+/// instead load script plugins, so they get a generated plugin file.
 
 struct HookHost {
+    /// How a JSON config lays out its hooks. The inner handler shape is the
+    /// same everywhere; what differs is where the event lists live.
+    enum Dialect {
+        /// `{"hooks": {Event: [{matcher?, hooks: [handler]}]}}` — Claude Code,
+        /// Codex and Gemini CLI.
+        case nested
+        /// `{"version": 1, "hooks": {event: [handler]}}` — Cursor. Handlers
+        /// sit directly in the event list, no matcher groups.
+        case flat
+        /// `{"<name>": {"enabled": true, Event: [{matcher?, hooks: [handler]}]}}`
+        /// — Antigravity. The top level is keyed by hook name, so the pet owns
+        /// exactly one entry and never walks the others.
+        case named(String)
+    }
+
     enum Kind {
-        /// JSON config with a "hooks" object, as Claude Code, Codex and
-        /// Gemini CLI all use.
-        case json(files: [URL], events: [HookEvent], timeout: Int, supportsAsync: Bool)
-        /// A JavaScript plugin file, written to `file`. `alternates` are other
-        /// locations an older install may have used; they are cleaned up too.
-        case plugin(file: URL, alternates: [URL])
+        /// JSON config listing commands to run; see Dialect for the layout.
+        case json(
+            files: [URL], events: [HookEvent], timeout: Int, supportsAsync: Bool,
+            dialect: Dialect)
+        /// A script plugin written to `file`. `alternates` are other locations
+        /// an older install may have used; they are cleaned up too.
+        case plugin(file: URL, alternates: [URL], source: String)
     }
 
     let id: String
@@ -36,27 +56,41 @@ struct HookHost {
     /// Name of the config file inside a config folder.
     let fileName: String
     let kind: Kind
+    /// Paths that say the agent is installed, for agents whose config folder
+    /// alone cannot (Antigravity shares ~/.gemini with Gemini CLI). Empty
+    /// means the config folder decides.
+    var presenceMarkers: [URL] = []
 
     var files: [URL] {
         switch kind {
-        case .json(let files, _, _, _): return files
-        case .plugin(let file, _): return [file]
+        case .json(let files, _, _, _, _): return files
+        case .plugin(let file, _, _): return [file]
         }
     }
 
     var events: [HookEvent] {
-        if case .json(_, let events, _, _) = kind { return events }
+        if case .json(_, let events, _, _, _) = kind { return events }
         return []
+    }
+
+    var dialect: Dialect {
+        if case .json(_, _, _, _, let dialect) = kind { return dialect }
+        return .nested
     }
 
     /// True when the agent appears to be installed for this user.
     var isPresent: Bool {
+        if !presenceMarkers.isEmpty {
+            return presenceMarkers.contains {
+                FileManager.default.fileExists(atPath: $0.path)
+            }
+        }
         switch kind {
-        case .json(let files, _, _, _):
+        case .json(let files, _, _, _, _):
             return files.contains {
                 FileManager.default.fileExists(atPath: $0.deletingLastPathComponent().path)
             }
-        case .plugin(let file, _):
+        case .plugin(let file, _, _):
             // the plugin folder is ours to create; the agent's config root is
             // what says whether the agent itself is here
             let root = file.deletingLastPathComponent().deletingLastPathComponent()
@@ -92,19 +126,22 @@ struct HookHost {
     func targeting(_ paths: [URL]) -> HookHost {
         let resolved = paths.map { path -> URL in
             let ext = path.pathExtension.lowercased()
-            return (ext == "json" || ext == "js") ? path : path.appendingPathComponent(fileName)
+            return (ext == "json" || ext == "js" || ext == "ts")
+                ? path : path.appendingPathComponent(fileName)
         }
         switch kind {
-        case .json(_, let events, let timeout, let supportsAsync):
+        case .json(_, let events, let timeout, let supportsAsync, let dialect):
             return HookHost(
                 id: id, name: name, fileName: fileName,
                 kind: .json(
                     files: resolved, events: events,
-                    timeout: timeout, supportsAsync: supportsAsync))
-        case .plugin(_, let alternates):
+                    timeout: timeout, supportsAsync: supportsAsync, dialect: dialect),
+                presenceMarkers: presenceMarkers)
+        case .plugin(_, let alternates, let source):
             return HookHost(
                 id: id, name: name, fileName: fileName,
-                kind: .plugin(file: resolved[0], alternates: alternates))
+                kind: .plugin(file: resolved[0], alternates: alternates, source: source),
+                presenceMarkers: presenceMarkers)
         }
     }
 
@@ -122,7 +159,7 @@ struct HookHost {
                     HookEvent("Notification"), HookEvent("Stop"),
                     HookEvent("SessionEnd"),
                 ],
-                timeout: 5, supportsAsync: true))
+                timeout: 5, supportsAsync: true, dialect: .nested))
     }
 
     /// Codex keeps hooks in ~/.codex/hooks.json. Matchers there are regexes,
@@ -139,7 +176,7 @@ struct HookHost {
                     HookEvent("PermissionRequest", as: "Notification"),
                     HookEvent("Stop"), HookEvent("SessionEnd"),
                 ],
-                timeout: 5, supportsAsync: true))
+                timeout: 5, supportsAsync: true, dialect: .nested))
     }
 
     /// Gemini CLI uses its own event vocabulary, its timeout is in
@@ -158,7 +195,57 @@ struct HookHost {
                     HookEvent("AfterAgent", as: "Stop"),
                     HookEvent("Notification"), HookEvent("SessionEnd"),
                 ],
-                timeout: 5000, supportsAsync: false))
+                timeout: 5000, supportsAsync: false, dialect: .nested))
+    }
+
+    /// Antigravity's hooks.json lives under ~/.gemini but is its own format —
+    /// Antigravity 1.1+ ignores Gemini CLI's settings.json entirely. Hooks are
+    /// synchronous, and PreToolUse blocks until it reads a decision on stdout,
+    /// so that event runs `pet event PreToolUse --allow`. There is no
+    /// SessionStart or Notification equivalent.
+    static var antigravity: HookHost {
+        let home = NSHomeDirectory()
+        return HookHost(
+            id: "antigravity", name: "Antigravity", fileName: "hooks.json",
+            kind: .json(
+                files: [
+                    URL(fileURLWithPath: home).appendingPathComponent(".gemini/config/hooks.json")
+                ],
+                events: [
+                    HookEvent("PreInvocation", as: "UserPromptSubmit"),
+                    HookEvent("PreToolUse", flags: "--allow"),
+                    HookEvent("PostToolUse"),
+                    HookEvent("PostInvocation", as: "Stop"),
+                    HookEvent("Stop", as: "SessionEnd"),
+                ],
+                timeout: 5, supportsAsync: false, dialect: .named("pet")),
+            presenceMarkers: [
+                URL(fileURLWithPath: "/Applications/Antigravity.app"),
+                URL(fileURLWithPath: home + "/Applications/Antigravity.app"),
+                URL(fileURLWithPath: home + "/.antigravity"),
+            ])
+    }
+
+    /// Cursor reads ~/.cursor/hooks.json for both the IDE and its CLI.
+    /// Handlers sit directly in each event's list, `version: 1` is required,
+    /// and hooks fail open — an observer that prints nothing never blocks.
+    /// There is no Notification equivalent.
+    static var cursor: HookHost {
+        let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cursor")
+        return HookHost(
+            id: "cursor", name: "Cursor", fileName: "hooks.json",
+            kind: .json(
+                files: [dir.appendingPathComponent("hooks.json")],
+                events: [
+                    HookEvent("sessionStart", as: "SessionStart"),
+                    HookEvent("beforeSubmitPrompt", as: "UserPromptSubmit"),
+                    HookEvent("preToolUse", as: "PreToolUse"),
+                    HookEvent("postToolUse", as: "PostToolUse"),
+                    HookEvent("postToolUseFailure", as: "PostToolUseFailure"),
+                    HookEvent("stop", as: "Stop"),
+                    HookEvent("sessionEnd", as: "SessionEnd"),
+                ],
+                timeout: 5, supportsAsync: false, dialect: .flat))
     }
 
     /// opencode loads JavaScript plugins. Both plugin/ and plugins/ are read
@@ -169,12 +256,25 @@ struct HookHost {
             id: "opencode", name: "opencode", fileName: "pet.js",
             kind: .plugin(
                 file: dir.appendingPathComponent("plugin/pet.js"),
-                alternates: [dir.appendingPathComponent("plugins/pet.js")]))
+                alternates: [dir.appendingPathComponent("plugins/pet.js")],
+                source: OpencodePlugin.source))
     }
 
-    static var all: [HookHost] { [.claude, .codex, .gemini, .opencode] }
+    /// pi has no command hooks; it loads TypeScript extensions from
+    /// ~/.pi/agent/extensions. Needs pi 0.83 or later, where the extension
+    /// event bus became public.
+    static var pi: HookHost {
+        let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".pi/agent")
+        return HookHost(
+            id: "pi", name: "pi", fileName: "pet.ts",
+            kind: .plugin(
+                file: dir.appendingPathComponent("extensions/pet.ts"),
+                alternates: [],
+                source: PiPlugin.source))
+    }
+
+    static var all: [HookHost] {
+        [.claude, .codex, .gemini, .opencode, .antigravity, .cursor, .pi]
+    }
     static func named(_ id: String) -> HookHost? { all.first { $0.id == id } }
 }
-
-/// The JavaScript plugin written into opencode's plugin folder. It writes the
-/// pet's state file directly — no process to spawn per event.
