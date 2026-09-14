@@ -199,6 +199,8 @@ enum CLI {
         var text = ""
         if let prompt = json["prompt"] as? String {
             text = prompt
+        } else if let message = json["message"] as? String {
+            text = message  // Notification events carry their text here
         } else if let input = json["tool_input"] as? [String: Any]
             ?? (json["toolCall"] as? [String: Any])?["args"] as? [String: Any]
         {

@@ -28,10 +28,28 @@ struct AgentSession {
 
     var age: TimeInterval { Date().timeIntervalSince1970 - stamp }
 
-    /// True while the session needs the user — a permission or notification.
-    var isWaiting: Bool {
-        (event == "Notification" || event == "PermissionRequest") && age < 1800
+    var isNotification: Bool { event == "Notification" || event == "PermissionRequest" }
+
+    /// Claude Code fires a Notification both for a real permission ask and for
+    /// its idle "waiting for your input" nudge after a turn ends. Only the
+    /// former should look urgent; the message tells them apart.
+    var isIdleNudge: Bool {
+        guard isNotification else { return false }
+        let m = detail.lowercased()
+        if m.contains("permission") || m.contains("approve") || m.contains("needs") {
+            return false
+        }
+        return m.contains("your input") || m.contains("waiting for input") || m.contains("idle")
     }
+
+    /// True while the session genuinely needs the user — a permission ask,
+    /// not the idle end-of-turn nudge. Drives the chime, the badge and the
+    /// alert pose.
+    var isWaiting: Bool { isNotification && !isIdleNudge && age < 1800 }
+
+    /// The event the pose should react to: the idle nudge reads as quiet, so
+    /// the pet settles rather than standing alert after every turn.
+    var poseEvent: String { isIdleNudge ? "" : event }
 
     /// What the card should say, or nil when this session has gone quiet.
     /// Needing attention lingers; starting and finishing fade in 5 seconds.
@@ -40,7 +58,8 @@ struct AgentSession {
         case "PostToolUseFailure", "StopFailure":
             return age < 300 ? "A tool failed" : nil
         case "Notification", "PermissionRequest":
-            return age < 1800 ? "Waiting for you" : nil
+            if isIdleNudge { return age < 60 ? "Waiting for your reply" : nil }
+            return age < 1800 ? (detail.isEmpty ? "Waiting for you" : detail) : nil
         case "PreToolUse":
             if age >= 600 { return nil }
             if !detail.isEmpty { return detail }

@@ -146,6 +146,13 @@ called the event, and the pi extension does the same with `isError`. A null
 `error` does not count. opencode reports turn failures through its own
 `session.error`.
 
+Claude Code fires a `Notification` both for a real permission ask and for its
+idle "waiting for your input" nudge after a turn ends. The bubble tells them
+apart by the notification's `message`: a permission ask reads "Waiting for
+you" (and shows the message) and stands the pet up, while the idle nudge reads
+a calmer "Waiting for your reply" and fades after a minute without raising the
+pet. So a finished, idle turn no longer looks like it needs you.
+
 ## Other config folders
 
 Each agent has one default config location — `~/.claude`, `~/.codex`,

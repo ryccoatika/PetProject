@@ -15,10 +15,11 @@ extension AppDelegate {
         if !pinnedSession.isEmpty, let pinned = sessions.first(where: { $0.id == pinnedSession }) {
             return pinned
         }
-        // waiting beats a failure beats work beats thinking; ties break newest
+        // waiting beats a failure beats work beats thinking; ties break newest.
+        // an idle nudge is not "waiting", so it ranks as quiet.
         func rank(_ s: AgentSession) -> Int {
+            if s.isWaiting { return 4 }
             switch s.event {
-            case "Notification", "PermissionRequest": return 4
             case "PostToolUseFailure", "StopFailure": return 3
             case "PreToolUse": return 2
             case "UserPromptSubmit", "PostToolUse": return 1
@@ -59,7 +60,7 @@ extension AppDelegate {
         if driver.stamp != lastStamp {
             if event == "" || driver.stamp > lastStamp { idleSince = Date() }
         }
-        event = driver.event
+        event = driver.poseEvent  // an idle nudge reads as quiet, not alert
         tool = driver.tool
         if !driver.tool.isEmpty { lastTool = driver.tool }
         lastStamp = driver.stamp

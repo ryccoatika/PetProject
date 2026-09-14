@@ -34,7 +34,10 @@ Unreleased, and merging into `main`.
   show | hide`. Driven by per-session files in `<configDir>/sessions/`,
   written by the same hooks.
 - **Chime When an Agent Needs You** (menu, off by default): a sound the
-  moment any session starts waiting on a permission.
+  moment any session starts waiting on a permission. Claude Code's idle
+  "waiting for your input" nudge is told apart from a real permission ask by
+  its message, so a finished turn reads a calm "Waiting for your reply" rather
+  than a lingering "Waiting for you", and does not chime or stand the pet up.
 - The **menu bar icon** carries a live session count, red with a `!` when one
   needs you — glanceable from any Space.
 - **Follow Session** (menu): pin the pose to one session, or leave it on
