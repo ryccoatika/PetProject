@@ -102,14 +102,15 @@ extension AppDelegate {
         defer { dragSamples.removeAll() }
         guard let first = dragSamples.first, let last = dragSamples.last, last.t > first.t
         else { return }
-        let dt = last.t - first.t
+        let dt = CGFloat(last.t - first.t)
         let vx = (last.p.x - first.p.x) / dt
         let vy = (last.p.y - first.p.y) / dt
         let speed = hypot(vx, vy)  // pixels per second, before any cap
         guard speed > 400 else { return }  // below this it is a drop
         // per-frame velocity, capped so a hard flick stays on screen
+        let perFrame = CGFloat(fps)
         throwVelocity = CGVector(
-            dx: max(-60, min(60, vx / fps)), dy: max(-60, min(60, vy / fps)))
+            dx: max(-60, min(60, vx / perFrame)), dy: max(-60, min(60, vy / perFrame)))
         throwing = true
         view.spin = 0
         view.squash = 1
@@ -134,10 +135,11 @@ extension AppDelegate {
         pos.x += throwVelocity.dx * tickScale
         pos.y += throwVelocity.dy * tickScale
 
+        let ts = CGFloat(tickScale)
         // tumble in the air, faster the faster it flies
-        view.spin += throwVelocity.dx * 0.012 * tickScale
+        view.spin += throwVelocity.dx * 0.012 * ts
         // ease any squash back out
-        view.squash += (1 - view.squash) * 0.25 * tickScale
+        view.squash += (1 - view.squash) * 0.25 * ts
 
         let bounce: CGFloat = 0.55
         func splat() { view.squash = 0.7 }  // compress against whatever it hit
