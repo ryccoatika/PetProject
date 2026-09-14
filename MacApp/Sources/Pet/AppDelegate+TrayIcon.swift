@@ -36,6 +36,7 @@ extension AppDelegate {
 
     func applyTrayIcon() {
         guard let button = statusItem?.button else { return }
+        button.attributedTitle = NSAttributedString(string: "")  // drop a stale red badge
         button.title = ""
         button.image = nil
         lastTraySignature = ""  // force the next animation tick to redraw

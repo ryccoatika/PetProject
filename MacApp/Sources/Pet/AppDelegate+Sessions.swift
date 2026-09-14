@@ -41,13 +41,23 @@ extension AppDelegate {
         guard badge != lastBadge else { return }
         lastBadge = badge
 
-        // rebuild the base icon, then append the badge as coloured text
+        // rebuild the base icon (also clears any old title), then the badge
         applyTrayIcon()
         guard !badge.isEmpty else { return }
-        let color = waiting ? NSColor.systemRed : NSColor.secondaryLabelColor
-        button.attributedTitle = NSAttributedString(
-            string: badge,
-            attributes: [.foregroundColor: color, .font: NSFont.systemFont(ofSize: 12)])
+        if waiting {
+            // red draws attention; it stays legible on a light or dark bar
+            button.attributedTitle = NSAttributedString(
+                string: badge,
+                attributes: [
+                    .foregroundColor: NSColor.systemRed,
+                    .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+                ])
+        } else {
+            // a plain title uses the menu bar's own foreground colour, which
+            // the system inverts for a dark or light wallpaper — a fixed
+            // semantic colour (labelColor, secondaryLabelColor) would not.
+            button.title = badge
+        }
     }
 
     /// Let the chosen session stand in for the state file, so the pose
