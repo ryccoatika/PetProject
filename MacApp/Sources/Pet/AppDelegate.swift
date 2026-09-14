@@ -45,8 +45,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var skinMenu = NSMenu()
     var pluginMenu = NSMenu()
     var sizeMenu = NSMenu()
+    var iconMenu = NSMenu()
+    var appearanceMenu = NSMenu()
+    var behaviorMenu = NSMenu()
+    /// A newer release's tag, when the quiet launch check found one.
+    var updateAvailable: String?
+    /// The About window and its update controls; kept so a second About
+    /// brings the same window forward and the spinner can be driven.
+    var aboutWindow: NSWindow?
+    var aboutCheckButton: NSButton?
+    var aboutSpinner: NSProgressIndicator?
+    /// The activity-bubble stack above the pet's head.
+    var bubbleWindow: NSWindow?
+    var bubbleView: BubbleView?
+    var bubblesEnabled = true
+    var bubbleSignature = ""
+    var bubbleItem: NSMenuItem!
+    var sinceBubbleRead: Double = 0
+    /// Live sessions, re-read on a slow tick and shared by the bubbles, the
+    /// badge and the pose.
+    var liveSessions: [AgentSession] = []
+
+    /// Chime when a session starts waiting for you. Off by default.
+    var chimeEnabled = false
+    var chimeItem: NSMenuItem!
+    let chimeSoundName = "Submarine"  // a built-in macOS alert sound
+    var lastWaitingSessions: Set<String> = []
+    var bubbleWindowSeenOnce = false
+
+    /// Which agent session drives the pose. Empty means auto (most urgent).
+    var pinnedSession = ""
+    var followMenu = NSMenu()
+    /// The menu bar badge tracks live sessions and whether any needs you.
+    var lastBadge = ""
+    /// The sprite track+frame last drawn into the menu bar, so it only
+    /// redraws when the frame actually changes.
+    var lastTraySignature = ""
+
+    /// Streaks: consecutive tool successes lift the celebration; repeated
+    /// failures earn a longer, glummer failed pose.
+    var successStreak = 0
+    var failureStreak = 0
+    var lastStreakStamp: TimeInterval = 0
+
+    /// Toss physics: velocity carried from a flick, integrated until settled.
+    var throwVelocity = CGVector.zero
+    var throwing = false
+    var dragSamples: [(t: TimeInterval, p: CGPoint)] = []
     var sizeSlider: NSSlider?
-    var sizeReadout: NSMenuItem?
+    var sizeReadout: NSTextField?
     var sizeResetItem: NSMenuItem?
     let mainMenu = NSMenu()
     var statusRow: NSMenuItem!
@@ -94,6 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let d = Prefs.store
         chaseWhenIdle = d.bool(forKey: "petChase")
+        bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
+        chimeEnabled = d.bool(forKey: "petChime")
+        pinnedSession = d.string(forKey: "petFollowSession") ?? ""
         if let saved = d.object(forKey: "petScale") as? Double { artScale = CGFloat(saved) }
         reloadSkins()
         let wanted = d.string(forKey: "petSkin") ?? "tabby"
@@ -115,6 +165,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         view.dragMove = { [weak self] origin in
             guard let self else { return }
             self.pos = CGPoint(x: origin.x + self.size.width / 2, y: origin.y)
+            self.throwing = false  // grabbing it out of the air stops a throw
+            self.view.spin = 0
+            self.view.squash = 1
+            self.recordDragSample()
             self.place()
         }
         view.dragEnd = { [weak self] in self?.endDrag() }
@@ -126,6 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         installCommandLineTool()
         checkCommandLineReachable()
+        checkForUpdatesQuietly()
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(reloadFromPreferences),
             name: Notification.Name(Prefs.reloadNotification), object: nil)

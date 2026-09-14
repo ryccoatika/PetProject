@@ -128,60 +128,11 @@ extension AppDelegate {
         }
     }
 
-    /// The standard About panel, so it looks and behaves like every other Mac
-    /// app's: same layout, same keyboard handling, free localisation.
-    @objc func showAbout() {
-        let credits = NSMutableAttributedString()
-        let body: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: {
-                let p = NSMutableParagraphStyle()
-                p.alignment = .center
-                p.lineSpacing = 2
-                return p
-            }(),
-        ]
-        credits.append(
-            NSAttributedString(
-                string: "A desktop pet that reacts to your coding agent.\n"
-                    + "Drawn in code — no image assets.\n\n",
-                attributes: body))
-
-        let currentArt = view.sprite.map { "\($0.name) — \($0.rows) row atlas" } ?? view.skin.name
-        credits.append(
-            NSAttributedString(
-                string: "Currently wearing \(currentArt).\n",
-                attributes: body))
-
-        let agents = HookHost.all.filter { HookPlugin.isRegistered($0) }.map(\.name)
-        credits.append(
-            NSAttributedString(
-                string: agents.isEmpty
-                    ? "No agent is driving it yet.\n\n"
-                    : "Driven by \(agents.joined(separator: ", ")).\n\n",
-                attributes: body))
-
-        let link = NSMutableAttributedString(
-            string: "github.com/ryccoatika/PetProject",
-            attributes: body.merging([
-                .link: URL(string: "https://github.com/ryccoatika/PetProject")!
-            ]) { _, new in new })
-        credits.append(link)
-
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Desktop Pet",
-            .applicationVersion: Build.version,
-            .credits: credits,
-        ])
-    }
-
     func showTray() {
         guard statusItem == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "🐈"
         statusItem = item
+        applyTrayIcon()
         buildMenu()
     }
 

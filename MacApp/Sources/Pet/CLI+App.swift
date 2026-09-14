@@ -32,6 +32,7 @@ extension CLI {
         print("hidden     : \(d.bool(forKey: "petHidden") ? "yes" : "no")")
         print("chase      : \(d.bool(forKey: "petChase") ? "on" : "off")")
         print("menu bar   : \(d.bool(forKey: "petTrayHidden") ? "hidden" : "shown")")
+        print("bubbles    : \(d.bool(forKey: "petBubblesHidden") ? "hidden" : "shown")")
         print(
             "size       : \(Int((((d.object(forKey: "petScale") as? Double) ?? 1) * 100).rounded()))%"
         )
@@ -83,6 +84,37 @@ extension CLI {
             print(Prefs.store.bool(forKey: "petTrayHidden") ? "hidden" : "shown")
         default:
             fail("usage: pet tray [show | hide]")
+        }
+    }
+
+    /// `pet stats` — a small tally of today and the recent past.
+    static func stats() {
+        let (today, totals) = Stats.summary()
+        print("today:")
+        print("  sessions : \(today.sessions)")
+        print("  tools    : \(today.tools)")
+        print("  failures : \(today.failures)")
+        print("  active   : \(Stats.humanSpan(today.activeSeconds))")
+        print("")
+        print("last \(totals.days) day(s):")
+        print("  sessions : \(totals.sessions)")
+        print("  tools    : \(totals.tools)")
+        print("  failures : \(totals.failures)")
+    }
+
+    /// The activity bubbles above the pet's head.
+    static func bubbles(_ action: String?) {
+        Prefs.refresh()
+        switch action {
+        case "show", "hide":
+            Prefs.store.set(action == "hide", forKey: "petBubblesHidden")
+            Prefs.store.synchronize()
+            Prefs.notifyRunningApp()
+            print(action == "hide" ? "activity bubbles hidden" : "activity bubbles shown")
+        case nil, "status":
+            print(Prefs.store.bool(forKey: "petBubblesHidden") ? "hidden" : "shown")
+        default:
+            fail("usage: pet bubbles [show | hide]")
         }
     }
 

@@ -11,6 +11,8 @@ link too, pointing it at the copy in `~/Applications`.
     pet start | stop | restart
     pet show | hide         the pet itself
     pet tray show | hide    the menu bar icon
+    pet bubbles show | hide the activity bubbles above the pet
+    pet stats               today's sessions, tools and active time
     pet skins               list skins, current one marked
     pet skin <id>           switch skin
     pet skins dir           print the skins folder
@@ -18,6 +20,7 @@ link too, pointing it at the copy in `~/Applications`.
     pet config set <path>   move it
     pet config reset        back to ~/.config/pet
     pet plugin install [agent]   claude | codex | gemini | opencode
+                                 | antigravity | cursor | pi
     pet plugin uninstall [agent] | pet plugin status
     pet plugin install claude --path <dir>   a non-default config folder
     pet uninstall [--all]   remove app + CLI (--all also removes the config)
@@ -64,17 +67,49 @@ The pet polls a single file and maps what it finds to a pose:
 | `Stop` | celebrating for ~2.4s, then idle |
 | nothing recent | sitting → grooming → asleep |
 
+Alongside the single state line, `pet event` keeps one small file per agent
+session in `<configDir>/sessions/<session-id>`, holding
+`EVENT|TOOL|EPOCH|PROJECT|DETAIL|CWD` (the last base64-encoded). Those drive
+the activity bubbles above the pet's head — one card per session naming the
+project and what is actually happening (the prompt, the command, the file),
+so two projects running at once stack two bubbles. **Click a card** to raise
+the terminal or IDE running that session — bringing its window, and its
+Space, to the front (it falls back to opening the folder in Finder when the
+app cannot be found). `SessionEnd` retires a session's file; stale ones age
+out. The menu has **Show Activity Bubbles**, and `pet bubbles
+show | hide` is the same switch.
+
+A few things follow from having every session in view:
+
+- **Chime When an Agent Needs You** (menu, off by default) plays a sound the
+  moment any session starts waiting on a permission — the one time you have
+  to look.
+- The **menu bar icon** shows a live session count, turning red with a `!`
+  when one needs you, so a glance works even with the pet on another Space.
+- **Follow Session** (menu) pins the pose to one session; left on *Most
+  urgent* the pet shows whichever session most wants attention rather than
+  whichever agent wrote last.
+- `pet stats` (and a line in About) tallies today's sessions, tools run and
+  active time.
+
 `pet event <name>` is what writes that line: agent hooks call the CLI
-directly, so there is no generated shell script anywhere. The app itself knows
+directly, so there is no generated shell script anywhere. With `--allow` it
+also prints `{"decision":"allow"}` — for agents whose tool hooks are
+synchronous and wait for a verdict, like Antigravity. The app itself knows
 nothing about any particular agent — anything that writes that line can drive
-it. Claude Code, Codex, Gemini CLI and opencode are supported out of the box;
-see [Agent plugins](PLUGINS.md). Without a plugin the pet simply idles, wanders and
-sleeps.
+it. Claude Code, Codex, Gemini CLI, opencode, Antigravity, Cursor and pi are
+supported out of the box; see [Agent plugins](PLUGINS.md). Without a plugin
+the pet simply idles, wanders and sleeps.
 
 ## Interaction
 
 - **Drag** the pet anywhere; the drop position is remembered.
 - **Double-click** toggles chase mode (follow the cursor while Claude is idle).
-- **Menu bar 🐈**: live status, skin picker, chase toggle, quit.
+- **Flick** the pet to throw it — it tumbles through the air, squashes against
+  the screen edges as it bounces, and flashes how fast you flung it. With
+  chase mode on it still throws, then heads back to the cursor.
+- **Menu bar icon**: live status and an update row up top; then **Appearance**
+  (skin, size, menu bar icon), **Behaviour** (chase, activity bubbles, chime,
+  follow session) and **Agent Plugin**; About and Quit at the foot.
 - Clicks only register on the creature itself; everywhere else in its window
   they pass through to the app underneath.

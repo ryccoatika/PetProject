@@ -9,8 +9,20 @@ extension AppDelegate {
 
     // MARK: menu
 
+    /// A template SF Symbol for a menu row, so the icons follow the menu's
+    /// light or dark appearance.
+    func menuSymbol(_ name: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        image?.isTemplate = true
+        return image
+    }
+
     /// Built once. Titles and check-marks are refreshed in menuNeedsUpdate,
     /// so they are always current when the menu opens.
+    ///
+    /// Three groups keep the top level short: what the pet is doing, then
+    /// Appearance (how it looks), Behaviour (what it does) and Agent Plugin
+    /// (which agents drive it), then the app rows.
     func buildMenu() {
         mainMenu.removeAllItems()
         mainMenu.delegate = self
@@ -18,53 +30,45 @@ extension AppDelegate {
         statusRow = NSMenuItem(title: statusSummary(), action: nil, keyEquivalent: "")
         statusRow.isEnabled = false
         mainMenu.addItem(statusRow)
+        if let tag = updateAvailable {
+            let update = NSMenuItem(
+                title: "Update available — \(tag)",
+                action: #selector(openReleasesPage), keyEquivalent: "")
+            update.target = self
+            update.image = menuSymbol("arrow.down.circle")
+            mainMenu.addItem(update)
+        }
         mainMenu.addItem(.separator())
 
         visItem = NSMenuItem(
             title: hidden ? "Show Pet" : "Hide Pet",
             action: #selector(toggleHidden), keyEquivalent: "h")
         visItem.target = self
+        visItem.image = menuSymbol(hidden ? "eye" : "eye.slash")
         mainMenu.addItem(visItem)
-
-        let trayItem = NSMenuItem(
-            title: "Hide Menu Bar Icon",
-            action: #selector(hideTray), keyEquivalent: "")
-        trayItem.target = self
-        mainMenu.addItem(trayItem)
         mainMenu.addItem(.separator())
 
-        let skinItem = NSMenuItem(title: "Skin", action: nil, keyEquivalent: "")
-        skinMenu.delegate = self  // repopulated from disk each time it opens
-        populateSkinMenu()
-        skinItem.submenu = skinMenu
-        mainMenu.addItem(skinItem)
+        // Appearance — how the pet looks
+        buildAppearanceMenu()
+        let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+        appearanceItem.image = menuSymbol("paintpalette")
+        appearanceItem.submenu = appearanceMenu
+        mainMenu.addItem(appearanceItem)
 
-        let sizeItem = NSMenuItem(title: "Size", action: nil, keyEquivalent: "")
-        sizeMenu.autoenablesItems = false
-        buildSizeMenu()
-        sizeItem.submenu = sizeMenu
-        mainMenu.addItem(sizeItem)
+        // Behaviour — what the pet does
+        buildBehaviorMenu()
+        let behaviorItem = NSMenuItem(title: "Behaviour", action: nil, keyEquivalent: "")
+        behaviorItem.image = menuSymbol("slider.horizontal.3")
+        behaviorItem.submenu = behaviorMenu
+        mainMenu.addItem(behaviorItem)
 
         let pluginItem = NSMenuItem(title: "Agent Plugin", action: nil, keyEquivalent: "")
         pluginMenu.delegate = self  // re-read from disk each time it opens
         pluginMenu.autoenablesItems = false
         populatePluginMenu()
+        pluginItem.image = menuSymbol("bolt.horizontal")
         pluginItem.submenu = pluginMenu
         mainMenu.addItem(pluginItem)
-        mainMenu.addItem(.separator())
-
-        chaseItem = NSMenuItem(
-            title: "Chase cursor when idle",
-            action: #selector(toggleChase), keyEquivalent: "")
-        chaseItem.target = self
-        chaseItem.state = chaseWhenIdle ? .on : .off
-        mainMenu.addItem(chaseItem)
-
-        let hint = NSMenuItem(
-            title: "Drag to move · double-click to toggle chase",
-            action: nil, keyEquivalent: "")
-        hint.isEnabled = false
-        mainMenu.addItem(hint)
         mainMenu.addItem(.separator())
 
         if !cliReachable {
@@ -90,6 +94,7 @@ extension AppDelegate {
             title: "About Desktop Pet", action: #selector(showAbout),
             keyEquivalent: "")
         about.target = self
+        about.image = menuSymbol("info.circle")
         mainMenu.addItem(about)
 
         let quit = NSMenuItem(title: "Quit Pet", action: #selector(quit), keyEquivalent: "q")
@@ -99,15 +104,99 @@ extension AppDelegate {
         statusItem?.menu = mainMenu
     }
 
+    /// Appearance: skin, size and the menu bar icon.
+    func buildAppearanceMenu() {
+        appearanceMenu.removeAllItems()
+        appearanceMenu.autoenablesItems = false
+
+        let skinItem = NSMenuItem(title: "Skin", action: nil, keyEquivalent: "")
+        skinMenu.delegate = self  // repopulated from disk each time it opens
+        populateSkinMenu()
+        skinItem.image = menuSymbol("pawprint")
+        skinItem.submenu = skinMenu
+        appearanceMenu.addItem(skinItem)
+
+        let sizeItem = NSMenuItem(title: "Size", action: nil, keyEquivalent: "")
+        sizeMenu.autoenablesItems = false
+        buildSizeMenu()
+        sizeItem.image = menuSymbol("arrow.up.left.and.arrow.down.right")
+        sizeItem.submenu = sizeMenu
+        appearanceMenu.addItem(sizeItem)
+
+        let iconItem = NSMenuItem(title: "Menu Bar Icon", action: nil, keyEquivalent: "")
+        iconMenu.delegate = self  // ticks refresh each time it opens
+        iconMenu.autoenablesItems = false
+        populateIconMenu()
+        iconItem.image = menuSymbol("menubar.rectangle")
+        iconItem.submenu = iconMenu
+        appearanceMenu.addItem(iconItem)
+    }
+
+    /// Behaviour: the toggles and Follow Session.
+    func buildBehaviorMenu() {
+        behaviorMenu.removeAllItems()
+        behaviorMenu.autoenablesItems = false
+        behaviorMenu.delegate = self  // refresh the checkmarks on open
+
+        chaseItem = NSMenuItem(
+            title: "Chase cursor when idle",
+            action: #selector(toggleChase), keyEquivalent: "")
+        chaseItem.target = self
+        chaseItem.state = chaseWhenIdle ? .on : .off
+        chaseItem.image = menuSymbol("cursorarrow.motionlines")
+        behaviorMenu.addItem(chaseItem)
+
+        bubbleItem = NSMenuItem(
+            title: "Show Activity Bubbles",
+            action: #selector(toggleBubbles), keyEquivalent: "")
+        bubbleItem.target = self
+        bubbleItem.state = bubblesEnabled ? .on : .off
+        bubbleItem.image = menuSymbol("bubble.left")
+        behaviorMenu.addItem(bubbleItem)
+
+        chimeItem = NSMenuItem(
+            title: "Chime When an Agent Needs You",
+            action: #selector(toggleChime), keyEquivalent: "")
+        chimeItem.target = self
+        chimeItem.state = chimeEnabled ? .on : .off
+        chimeItem.image = menuSymbol("bell")
+        behaviorMenu.addItem(chimeItem)
+
+        behaviorMenu.addItem(.separator())
+
+        let followItem = NSMenuItem(title: "Follow Session", action: nil, keyEquivalent: "")
+        followMenu.delegate = self  // rebuilt from the live sessions each open
+        followMenu.autoenablesItems = false
+        populateFollowMenu()
+        followItem.image = menuSymbol("dot.viewfinder")
+        followItem.submenu = followMenu
+        behaviorMenu.addItem(followItem)
+
+        behaviorMenu.addItem(.separator())
+        let hint = NSMenuItem(
+            title: "Drag to move · double-click to chase · flick to throw",
+            action: nil, keyEquivalent: "")
+        hint.isEnabled = false
+        behaviorMenu.addItem(hint)
+    }
+
     /// Cheap: only the values that change while the app runs.
     /// A slider lives in the menu as a custom view; the readout above it is
     /// updated as it moves rather than being rebuilt, so dragging stays smooth.
     func buildSizeMenu() {
         sizeMenu.removeAllItems()
 
-        let readout = NSMenuItem(title: sizeLabel(), action: nil, keyEquivalent: "")
-        readout.isEnabled = false
-        sizeReadout = readout
+        // A custom view rather than a disabled item, so the readout keeps a
+        // full-contrast label colour instead of the greyed disabled look.
+        let labelHolder = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 22))
+        let label = NSTextField(labelWithString: sizeLabel())
+        label.frame = NSRect(x: 20, y: 2, width: 184, height: 16)
+        label.font = .menuFont(ofSize: 0)
+        label.textColor = .labelColor
+        labelHolder.addSubview(label)
+        sizeReadout = label
+        let readout = NSMenuItem()
+        readout.view = labelHolder
         sizeMenu.addItem(readout)
 
         let holder = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 30))
@@ -139,7 +228,7 @@ extension AppDelegate {
 
     @objc func sizeSliderMoved(_ sender: NSSlider) {
         setArtScale(CGFloat(sender.doubleValue))
-        sizeReadout?.title = sizeLabel()
+        sizeReadout?.stringValue = sizeLabel()
         // the menu is still open, so this item was built before the drag
         sizeResetItem?.isEnabled = artScale != 1
     }
@@ -147,7 +236,7 @@ extension AppDelegate {
     @objc func resetSize() {
         setArtScale(1)
         sizeSlider?.doubleValue = 1
-        sizeReadout?.title = sizeLabel()
+        sizeReadout?.stringValue = sizeLabel()
         sizeResetItem?.isEnabled = false
     }
 
@@ -155,6 +244,8 @@ extension AppDelegate {
         statusRow?.title = statusSummary()
         visItem?.title = hidden ? "Show Pet" : "Hide Pet"
         chaseItem?.state = chaseWhenIdle ? .on : .off
+        bubbleItem?.state = bubblesEnabled ? .on : .off
+        chimeItem?.state = chimeEnabled ? .on : .off
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -165,6 +256,9 @@ extension AppDelegate {
         }
         if menu === pluginMenu { populatePluginMenu() }
         if menu === sizeMenu { buildSizeMenu() }
+        if menu === iconMenu { populateIconMenu() }
+        if menu === followMenu { populateFollowMenu() }
+        if menu === behaviorMenu { refreshMenu() }  // keep the toggles current
     }
 
     func statusSummary() -> String {

@@ -22,7 +22,7 @@ extension AppDelegate {
     func desiredLoopRate() -> Double {
         if hidden { return 2 }
         // Motion is what the eye catches, so only movement gets the full rate.
-        if dragging || view.held || view.pose == .running { return 30 }
+        if dragging || throwing || view.held || view.pose == .running { return 30 }
         if isActive { return 20 }  // typing, thinking, alerting
         // chasing: wake up while the cursor is actually moving, so the pet
         // starts after it without a visible delay
@@ -55,6 +55,8 @@ extension AppDelegate {
             if hidden { window.orderOut(nil) } else { place(); window.orderFrontRegardless() }
         }
         chaseWhenIdle = d.bool(forKey: "petChase")
+        bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
+        if !bubblesEnabled { hideBubbles() }
         // a missing key means the default size, which is how `pet size reset`
         // clears it — reading it as "no change" would ignore the reset
         let savedScale = CGFloat((d.object(forKey: "petScale") as? Double) ?? 1)
@@ -76,10 +78,104 @@ extension AppDelegate {
 
     func endDrag() {
         dragging = false
-        pos = clampToScreen(pos)
-        savePos()
-        place()
+        launchThrowIfFlicked()
+        if !throwing {
+            pos = clampToScreen(pos)
+            savePos()
+            place()
+        }
         refreshMenu()
+    }
+
+    /// Remember where the pet is and when, for a moment, so a release can
+    /// tell a flick from a gentle drop.
+    func recordDragSample() {
+        let now = Date().timeIntervalSince1970
+        dragSamples.append((now, pos))
+        dragSamples = dragSamples.filter { now - $0.t < 0.12 }
+    }
+
+    /// A quick flick on release throws the pet; a slow drop just leaves it.
+    /// Works with chase on too — the pet sails, lands, then chase resumes and
+    /// it heads back to the cursor.
+    func launchThrowIfFlicked() {
+        defer { dragSamples.removeAll() }
+        guard let first = dragSamples.first, let last = dragSamples.last, last.t > first.t
+        else { return }
+        let dt = CGFloat(last.t - first.t)
+        let vx = (last.p.x - first.p.x) / dt
+        let vy = (last.p.y - first.p.y) / dt
+        let speed = hypot(vx, vy)  // pixels per second, before any cap
+        guard speed > 400 else { return }  // below this it is a drop
+        // per-frame velocity, capped so a hard flick stays on screen
+        let perFrame = CGFloat(fps)
+        throwVelocity = CGVector(
+            dx: max(-60, min(60, vx / perFrame)), dy: max(-60, min(60, vy / perFrame)))
+        throwing = true
+        view.spin = 0
+        view.squash = 1
+        // a cheeky readout, scaled to how hard it was flung
+        let shout =
+            speed > 3500 ? "🚀 to the moon!" : speed > 2000 ? "wheee!" : "whee!"
+        flash("\(shout)  \(Int(speed)) px/s")
+    }
+
+    /// One step of the toss: gravity, movement, and a damped bounce off the
+    /// screen edges. Settles when it is slow and on the floor.
+    func throwStep() {
+        let screen =
+            NSScreen.screens.first { $0.frame.contains(pos) } ?? NSScreen.main
+            ?? NSScreen.screens[0]
+        let f = screen.visibleFrame
+        let floor = f.minY + 4
+        let ceiling = f.maxY - size.height
+        let leftX = f.minX + 50, rightX = f.maxX - 50
+
+        throwVelocity.dy -= 2.6 * tickScale  // gravity
+        pos.x += throwVelocity.dx * tickScale
+        pos.y += throwVelocity.dy * tickScale
+
+        let ts = CGFloat(tickScale)
+        // tumble in the air, faster the faster it flies
+        view.spin += throwVelocity.dx * 0.012 * ts
+        // ease any squash back out
+        view.squash += (1 - view.squash) * 0.25 * ts
+
+        let bounce: CGFloat = 0.55
+        func splat() { view.squash = 0.7 }  // compress against whatever it hit
+        if pos.x < leftX {
+            pos.x = leftX
+            throwVelocity.dx = abs(throwVelocity.dx) * bounce
+            splat()
+        }
+        if pos.x > rightX {
+            pos.x = rightX
+            throwVelocity.dx = -abs(throwVelocity.dx) * bounce
+            splat()
+        }
+        if pos.y > ceiling {
+            pos.y = ceiling
+            throwVelocity.dy = -abs(throwVelocity.dy) * bounce
+            splat()
+        }
+        if pos.y < floor {
+            pos.y = floor
+            throwVelocity.dy = -throwVelocity.dy * bounce
+            throwVelocity.dx *= 0.7  // friction with the floor
+            splat()
+        }
+
+        // settled: on the floor, barely moving
+        if pos.y <= floor + 1 && hypot(throwVelocity.dx, throwVelocity.dy) < 1.2 {
+            throwing = false
+            throwVelocity = .zero
+            view.spin = 0
+            view.squash = 1
+            pos = clampToScreen(pos)
+            savePos(force: true)
+        }
+        view.facingRight = throwVelocity.dx >= 0
+        place()
     }
 
     /// Remember where the pet is so it comes back there next launch.
@@ -143,6 +239,7 @@ extension AppDelegate {
         guard abs(pos.x - placedAt.x) > 0.5 || abs(pos.y - placedAt.y) > 0.5 else { return }
         placedAt = pos
         window.setFrameOrigin(NSPoint(x: pos.x - size.width / 2, y: pos.y))
+        placeBubbles()  // the stack rides along
     }
 
     // MARK: state file
@@ -176,17 +273,25 @@ extension AppDelegate {
             }
         }
 
+        // A rough patch earns a longer, glummer failed pose; a clean run
+        // earns a bigger, longer celebration.
+        let failWindow: TimeInterval = failureStreak >= 3 ? 12 : 6
+        let celebrateWindow: TimeInterval = successStreak >= 8 ? 4 : 2.4
+
         switch event {
-        case "PostToolUseFailure" where eventAge < 6, "StopFailure" where eventAge < 6:
-            view.pose = .failed; view.label = "failed"
+        case "PostToolUseFailure" where eventAge < failWindow,
+            "StopFailure" where eventAge < failWindow:
+            view.pose = .failed
+            view.label = failureStreak >= 3 ? "having a rough time" : "failed"
         case "Notification" where !stale, "PermissionRequest" where !stale:
             view.pose = .alert; view.label = "needs you"
         case "PreToolUse" where !stale:
             view.pose = .working; view.label = lastTool.isEmpty ? "working" : lastTool
         case "PostToolUse", "UserPromptSubmit":
             if stale { idlePose() } else { view.pose = .thinking; view.label = "thinking" }
-        case "Stop" where eventAge < 2.4:
-            view.pose = .celebrate; view.label = "done"
+        case "Stop" where eventAge < celebrateWindow:
+            view.pose = .celebrate
+            view.label = successStreak >= 8 ? "on a roll!" : "done"
         default:
             idlePose()
         }
@@ -224,8 +329,17 @@ extension AppDelegate {
 
         if hidden {  // still follow Claude so the menu stays useful
             if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
+            sinceBubbleRead += dt
+            if sinceBubbleRead >= 0.5 {
+                sinceBubbleRead = 0
+                liveSessions = SessionStore.read()
+                chimeIfNewlyWaiting(liveSessions)  // a chime is useful even when hidden
+                refreshBadge(liveSessions)
+            }
+            driveFromSession()
             updatePose()
             isActive = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
+            hideBubbles()
             setLoopRate(desiredLoopRate())
             return
         }
@@ -254,7 +368,26 @@ extension AppDelegate {
             return
         }
 
+        if throwing {  // sailing through the air after a flick
+            view.pose = .running  // legs out, mid-flight
+            view.label = nil
+            view.phase += 0.3 * tickScale
+            throwStep()
+            advanceSprite()
+            view.needsDisplay = true
+            setLoopRate(30)
+            return
+        }
+
         if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
+
+        sinceBubbleRead += dt
+        if sinceBubbleRead >= 0.5 {
+            sinceBubbleRead = 0
+            liveSessions = SessionStore.read()
+            updateBubbles()
+        }
+        driveFromSession()
         updatePose()
 
         let active = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
@@ -262,7 +395,8 @@ extension AppDelegate {
         advanceSprite()
         view.flashLabel = Date() < flashUntil ? flashText : nil
         view.phase += (active ? 0.3 : 0.07) * tickScale
-        view.hop = view.pose == .celebrate ? abs(sin(view.phase * 1.9)) * 16 : 0
+        let hopHeight: CGFloat = successStreak >= 8 ? 24 : 16
+        view.hop = view.pose == .celebrate ? abs(sin(view.phase * 1.9)) * hopHeight : 0
 
         // The pet has no home: it stays wherever it was last left, and only
         // walks when chasing is on and Claude is idle.
@@ -314,6 +448,7 @@ extension AppDelegate {
                 view.needsDisplay = true
             }
         }
+        animateTrayIfNeeded()  // the menu bar icon follows a sprite skin
         sinceSave += dt
         if sinceSave >= 5 { sinceSave = 0; savePos() }
         setLoopRate(desiredLoopRate())

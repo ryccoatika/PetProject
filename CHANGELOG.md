@@ -10,6 +10,54 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-14
+
+### Added
+
+- Agent plugins for **Antigravity**, **Cursor** and **pi**. Antigravity's
+  synchronous PreToolUse hook is answered with an allow decision so it never
+  stalls, Cursor gets flat command hooks in `~/.cursor/hooks.json` (IDE and
+  CLI both), and pi gets a generated TypeScript extension (pi 0.83+).
+- **Check for Updates**, from a button in the About dialog, plus a quiet
+  once-a-day check that adds an "Update available" row to the menu when a
+  newer release is out. Nothing downloads itself — both link to the releases
+  page.
+- The menu bar icon can now be chosen: the app icon, the current skin, or any
+  SF Symbol. With a sprite-pet skin the menu bar icon animates in step with
+  the pet, following its current track and frame.
+- **Activity bubbles**: a card above the pet's head names the project an
+  agent is working in and says what is actually happening — the prompt it
+  was given, the command it is running, the file it is editing — and
+  concurrent sessions stack their cards. **Click a card** to raise the
+  terminal or IDE running that session (falling back to opening its folder).
+  Toggle from the menu (**Show Activity Bubbles**) or with `pet bubbles
+  show | hide`. Driven by per-session files in `<configDir>/sessions/`,
+  written by the same hooks.
+- **Chime When an Agent Needs You** (menu, off by default): a sound the
+  moment any session starts waiting on a permission. Claude Code's idle
+  "waiting for your input" nudge is told apart from a real permission ask by
+  its message, so a finished turn reads a calm "Waiting for your reply" rather
+  than a lingering "Waiting for you", and does not chime or stand the pet up.
+- The **menu bar icon** carries a live session count, red with a `!` when one
+  needs you — glanceable from any Space.
+- **Follow Session** (menu): pin the pose to one session, or leave it on
+  *Most urgent* so the pet reflects whichever session most wants attention
+  rather than whichever agent wrote last.
+- `pet stats` and a line in About tally today's sessions, tools and active
+  time.
+- **Streaks**: a longer, bigger celebration after a clean run of tools, and a
+  glummer, longer failed pose during a rough patch.
+- **Throw the pet**: flick it and it tumbles through the air, squashes as it
+  bounces off the screen edges, and flashes how fast you flung it (px/s, with
+  a "whee!" that grows with the speed). With chase mode on it still throws,
+  then heads back to the cursor.
+
+### Changed
+
+- The default menu bar icon is the app icon rather than the 🐈 emoji.
+- The menu is grouped into **Appearance**, **Behaviour** and **Agent Plugin**,
+  with SF Symbol icons, so the top level stays short as features grow.
+
 ## [1.0.0] - 2026-09-12
 
 First release.
