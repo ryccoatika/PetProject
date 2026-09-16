@@ -178,6 +178,15 @@ extension AppDelegate {
         flashUntil = Date().addingTimeInterval(1.6)
         refreshMenu()
     }
+    @objc func toggleAntics() {
+        anticsEnabled.toggle()
+        Prefs.store.set(!anticsEnabled, forKey: "petAnticsOff")
+        if !anticsEnabled { endIdleAct() }
+        flashText = anticsEnabled ? "antics on" : "antics off"
+        flashUntil = Date().addingTimeInterval(1.6)
+        refreshMenu()
+        writeRuntime()
+    }
     @objc func quit() { NSApp.terminate(nil) }
 
     /// What the running app is actually doing, for `pet status`.

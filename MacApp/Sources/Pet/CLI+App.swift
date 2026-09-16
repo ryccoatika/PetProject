@@ -31,6 +31,7 @@ extension CLI {
         print("current    : \(d.string(forKey: "petSkin") ?? "tabby")")
         print("hidden     : \(d.bool(forKey: "petHidden") ? "yes" : "no")")
         print("chase      : \(d.bool(forKey: "petChase") ? "on" : "off")")
+        print("antics     : \(d.bool(forKey: "petAnticsOff") ? "off" : "on")")
         print("menu bar   : \(d.bool(forKey: "petTrayHidden") ? "hidden" : "shown")")
         print("bubbles    : \(d.bool(forKey: "petBubblesHidden") ? "hidden" : "shown")")
         print(
@@ -100,6 +101,22 @@ extension CLI {
         print("  sessions : \(totals.sessions)")
         print("  tools    : \(totals.tools)")
         print("  failures : \(totals.failures)")
+    }
+
+    /// Idle antics: the bored pet wandering, waving or sulking on its own.
+    static func antics(_ action: String?) {
+        Prefs.refresh()
+        switch action {
+        case "on", "off":
+            Prefs.store.set(action == "off", forKey: "petAnticsOff")
+            Prefs.store.synchronize()
+            Prefs.notifyRunningApp()
+            print(action == "off" ? "idle antics off" : "idle antics on")
+        case nil, "status":
+            print(Prefs.store.bool(forKey: "petAnticsOff") ? "off" : "on")
+        default:
+            fail("usage: pet antics [on | off]")
+        }
     }
 
     /// The activity bubbles above the pet's head.

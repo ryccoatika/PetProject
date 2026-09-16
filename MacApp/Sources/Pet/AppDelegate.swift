@@ -32,6 +32,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var idleSince = Date()
     var pos = CGPoint.zero
     var chaseWhenIdle = false
+    /// Idle antics: a bored pet wanders, waves or sulks on its own.
+    var anticsEnabled = true
+    /// The act in progress — .waving, .angry, or .running while wandering.
+    var idleAct: Pose?
+    var idleActUntil = Date.distantPast
+    /// Quiet seconds at which the next antic fires; 0 means unscheduled.
+    var nextActQuiet: TimeInterval = 0
+    var wanderTarget: CGPoint?
+    /// With antics on, sleep comes later so the pet has time to be bored.
+    let anticsSleepAt: TimeInterval = 150
     var dragging = false
     var isActive = false  // Claude is thinking / running a tool
     var lastTrack: SpritePet.Track = .idle
@@ -99,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusRow: NSMenuItem!
     var visItem: NSMenuItem!
     var chaseItem: NSMenuItem!
+    var anticsItem: NSMenuItem!
     var cliItem: NSMenuItem!
     /// Whether `pet` resolves in the user's own shell. Assume it does until
     /// the check says otherwise, so the warning never flashes up wrongly.
@@ -143,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         chaseWhenIdle = d.bool(forKey: "petChase")
         bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
         chimeEnabled = d.bool(forKey: "petChime")
+        anticsEnabled = !d.bool(forKey: "petAnticsOff")
         pinnedSession = d.string(forKey: "petFollowSession") ?? ""
         if let saved = d.object(forKey: "petScale") as? Double { artScale = CGFloat(saved) }
         reloadSkins()

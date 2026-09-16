@@ -8,4 +8,6 @@ import Foundation
 
 enum Pose {
     case sitting, grooming, sleeping, running, thinking, working, alert, celebrate, failed
+    /// Idle antics: what a bored pet gets up to on its own.
+    case waving, angry
 }

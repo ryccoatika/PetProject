@@ -75,7 +75,10 @@ The app polls the file ten times a second and maps the event to a pose:
 | `PostToolUseFailure`, `StopFailure` | failed | Failed |
 | `Notification`, `PermissionRequest` | alert | Waiting |
 | `Stop` | celebrating, ~2.4s | Jumping |
-| nothing recent | sitting → grooming → asleep | Idle, Look around |
+| nothing recent | sitting → grooming → asleep, with the odd antic | Idle, Look around |
+
+With antics on (the default) a bored pet occasionally strolls, waves or sulks
+before sleep takes over; `pet antics off` restores the plain ladder.
 
 An event older than 90 seconds is treated as stale, so a session that dies
 without a `Stop` leaves the pet idling rather than typing forever.

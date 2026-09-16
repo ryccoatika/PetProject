@@ -10,6 +10,17 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-09-16
+
+### Added
+
+- **Antics when bored** (on by default): a pet left idle acts on its own now
+  and then — strolls anywhere across the screen, waves at you, or sulks with
+  knitted brows after being ignored long enough. Two new drawn poses (waving,
+  angry); sprite packs use their Waving and Failed tracks. Sleep still wins
+  in the end, so the idle cost is unchanged. Toggle from the menu (**Antics
+  When Bored**) or `pet antics on | off`.
+
 ## [1.0.1] - 2026-09-14
 
 ### Added
