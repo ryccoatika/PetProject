@@ -161,11 +161,46 @@ extension PetView {
         drawHead(at: CGPoint(x: cx, y: y + 26), scale: 1, earPerk: 0.6)
     }
 
+    /// Sitting up, one paw raised high and swinging — saying hello.
+    func drawWaving() {
+        let cx = bounds.midX
+        let breathe = sin(phase * 0.8) * 0.8
+        let wag = sin(phase * 1.6) * 5
+        tail(
+            from: CGPoint(x: cx - 9, y: base + 6), to: CGPoint(x: cx + 18, y: base + 4 + wag),
+            c1: CGPoint(x: cx - 30, y: base - 2), c2: CGPoint(x: cx + 6, y: base - 8))
+        bodyShape(cx, base + 16 + breathe, 30, 30)
+        plainOval(cx + 3, base + 12, 16, 16, cream)
+        oval(cx - 11, base + 9, 18, 16, fur)
+        oval(cx + 6, base + 4, 9, 7, paw, 1.4)
+        let headY = base + 38 + breathe
+        // the raised paw, waving from the shoulder
+        let sway = sin(phase * 3.2) * 7
+        limb(CGPoint(x: cx + 13, y: base + 16), CGPoint(x: cx + 24 + sway, y: headY + 6))
+        oval(cx + 24 + sway, headY + 8, 9, 7, paw, 1.4)
+        drawHead(at: CGPoint(x: cx + 4, y: headY), scale: 1, earPerk: 1.1, happy: true)
+    }
+
+    /// Sitting tall, ears flat, tail lashing: being ignored has consequences.
+    func drawAngry() {
+        let cx = bounds.midX
+        let lash = sin(phase * 3.4) * 9
+        tail(
+            from: CGPoint(x: cx - 9, y: base + 6),
+            to: CGPoint(x: cx + 20, y: base + 6 + lash),
+            c1: CGPoint(x: cx - 28, y: base - 2), c2: CGPoint(x: cx + 6, y: base - 6))
+        bodyShape(cx, base + 18, 28, 34)
+        plainOval(cx + 2, base + 14, 15, 18, cream)
+        oval(cx + 5, base + 4, 9, 7, paw, 1.4)
+        oval(cx + 13, base + 4, 9, 7, paw, 1.4)
+        drawHead(at: CGPoint(x: cx + 3, y: base + 44), scale: 1, earPerk: 0.5, angry: true)
+    }
+
     // MARK: head
 
     func drawHead(
         at c: CGPoint, scale s: CGFloat, earPerk: CGFloat,
-        asleep: Bool = false, happy: Bool = false
+        asleep: Bool = false, happy: Bool = false, angry: Bool = false
     ) {
         if skin.crest == .ears {
             for dir in [-1.0 as CGFloat, 1.0] {
@@ -252,6 +287,16 @@ extension PetView {
             }
         }
 
+        if angry {  // brows knitted down toward the nose
+            ink.setStroke()
+            for dir in [-1.0 as CGFloat, 1.0] {
+                let b = NSBezierPath()
+                b.move(to: CGPoint(x: c.x + dir * 10.5 * s, y: c.y + 9.5 * s))
+                b.line(to: CGPoint(x: c.x + dir * 2.5 * s, y: c.y + 6.5 * s))
+                b.lineWidth = 2; b.lineCapStyle = .round; b.stroke()
+            }
+        }
+
         if skin.snout {  // dog: muzzle patch + round nose
             plainOval(c.x, c.y - 4.6 * s, 18 * s, 12 * s, cream)
             oval(c.x, c.y - 2.4 * s, 9 * s, 6.4 * s, pink, 1.3)
@@ -263,15 +308,25 @@ extension PetView {
             pink.setFill(); nose.fill()
         }
         let mouth = NSBezierPath()
-        mouth.move(to: CGPoint(x: c.x, y: c.y - 6 * s))
-        mouth.line(to: CGPoint(x: c.x, y: c.y - 7.6 * s))
-        mouth.appendArc(
-            withCenter: CGPoint(x: c.x - 2.6 * s, y: c.y - 7.6 * s),
-            radius: 2.6 * s, startAngle: 0, endAngle: -180, clockwise: true)
-        mouth.move(to: CGPoint(x: c.x, y: c.y - 7.6 * s))
-        mouth.appendArc(
-            withCenter: CGPoint(x: c.x + 2.6 * s, y: c.y - 7.6 * s),
-            radius: 2.6 * s, startAngle: 180, endAngle: 0, clockwise: false)
+        if angry {  // a flat little frown instead of the usual smile
+            mouth.move(to: CGPoint(x: c.x, y: c.y - 6 * s))
+            mouth.line(to: CGPoint(x: c.x, y: c.y - 7.8 * s))
+            mouth.move(to: CGPoint(x: c.x - 3.4 * s, y: c.y - 9.6 * s))
+            mouth.curve(
+                to: CGPoint(x: c.x + 3.4 * s, y: c.y - 9.6 * s),
+                controlPoint1: CGPoint(x: c.x - 1.4 * s, y: c.y - 8 * s),
+                controlPoint2: CGPoint(x: c.x + 1.4 * s, y: c.y - 8 * s))
+        } else {
+            mouth.move(to: CGPoint(x: c.x, y: c.y - 6 * s))
+            mouth.line(to: CGPoint(x: c.x, y: c.y - 7.6 * s))
+            mouth.appendArc(
+                withCenter: CGPoint(x: c.x - 2.6 * s, y: c.y - 7.6 * s),
+                radius: 2.6 * s, startAngle: 0, endAngle: -180, clockwise: true)
+            mouth.move(to: CGPoint(x: c.x, y: c.y - 7.6 * s))
+            mouth.appendArc(
+                withCenter: CGPoint(x: c.x + 2.6 * s, y: c.y - 7.6 * s),
+                radius: 2.6 * s, startAngle: 180, endAngle: 0, clockwise: false)
+        }
         ink.setStroke(); mouth.lineWidth = 1.4; mouth.stroke()
 
         guard skin.whiskers else { return }
@@ -332,6 +387,22 @@ extension PetView {
             }
             NSColor(srgbRed: 1, green: 0.82, blue: 0.35, alpha: a).setStroke()
             star.lineWidth = 2; star.lineCapStyle = .round; star.stroke()
+        }
+    }
+
+    /// Short strokes radiating beside the head — a comic-book huff.
+    func drawAngryMark() {
+        let p = CGPoint(x: bounds.midX + 34, y: base + 76)
+        let throb = sin(phase * 4) * 1.2
+        warn.setStroke()
+        for k in 0..<3 {
+            let ang = 0.5 + CGFloat(k) * 0.75
+            let l = NSBezierPath()
+            l.move(to: CGPoint(x: p.x + cos(ang) * 4, y: p.y + sin(ang) * 4))
+            l.line(
+                to: CGPoint(
+                    x: p.x + cos(ang) * (11 + throb), y: p.y + sin(ang) * (11 + throb)))
+            l.lineWidth = 2.4; l.lineCapStyle = .round; l.stroke()
         }
     }
 

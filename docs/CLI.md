@@ -12,6 +12,7 @@ link too, pointing it at the copy in `~/Applications`.
     pet show | hide         the pet itself
     pet tray show | hide    the menu bar icon
     pet bubbles show | hide the activity bubbles above the pet
+    pet antics on | off     wander, wave or sulk when bored (on by default)
     pet stats               today's sessions, tools and active time
     pet skins               list skins, current one marked
     pet skin <id>           switch skin
@@ -65,7 +66,14 @@ The pet polls a single file and maps what it finds to a pose:
 | `PreToolUse` | typing at a laptop, `TOOL` in the pill |
 | `Notification` | alert, `!` bubble, "needs you" |
 | `Stop` | celebrating for ~2.4s, then idle |
-| nothing recent | sitting → grooming → asleep |
+| nothing recent | sitting → grooming → asleep, with the odd antic |
+
+With **antics** on (the default), a pet left alone for a while acts on its
+own now and then: it strolls anywhere across the screen, waves at you, or —
+after being ignored long enough — sits and sulks. Sleep still wins in the end, so the
+overnight cost stays at the sleeping rate. `pet antics off` (or the menu's
+**Antics When Bored**) turns it off, restoring the plain sit → groom → sleep
+ladder.
 
 Alongside the single state line, `pet event` keeps one small file per agent
 session in `<configDir>/sessions/<session-id>`, holding
@@ -109,7 +117,7 @@ the pet simply idles, wanders and sleeps.
   the screen edges as it bounces, and flashes how fast you flung it. With
   chase mode on it still throws, then heads back to the cursor.
 - **Menu bar icon**: live status and an update row up top; then **Appearance**
-  (skin, size, menu bar icon), **Behaviour** (chase, activity bubbles, chime,
-  follow session) and **Agent Plugin**; About and Quit at the foot.
+  (skin, size, menu bar icon), **Behaviour** (chase, antics, activity bubbles,
+  chime, follow session) and **Agent Plugin**; About and Quit at the foot.
 - Clicks only register on the creature itself; everywhere else in its window
   they pass through to the app underneath.

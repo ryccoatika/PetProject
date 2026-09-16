@@ -155,6 +155,8 @@ final class PetView: NSView {
         case .alert, .failed: drawAlertPose()
         case .celebrate: drawCelebrate()
         case .working: drawWorking()
+        case .waving: drawWaving()
+        case .angry: drawAngry()
         }
         NSGraphicsContext.restoreGraphicsState()
 
@@ -164,6 +166,7 @@ final class PetView: NSView {
         case .thinking: drawThoughtBubble()
         case .alert, .failed: drawBangBubble()
         case .celebrate: drawSparkles()
+        case .angry: drawAngryMark()
         default: break
         }
         if let l = flashLabel ?? label { drawPill(l) }
@@ -221,6 +224,8 @@ final class PetView: NSView {
         case .celebrate: return .jumping
         case .grooming: return facingRight ? .lookAroundRight : .lookAroundLeft
         case .failed: return .failed
+        case .waving: return .waving
+        case .angry: return .failed  // the closest thing an atlas has to a sulk
         default: return .idle
         }
     }

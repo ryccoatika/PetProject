@@ -38,6 +38,7 @@ extension AppDelegate {
             "pid=\(ProcessInfo.processInfo.processIdentifier) "
             + "skin=\(view.sprite?.id ?? view.skin.id) "
             + "hidden=\(hidden ? 1 : 0) chase=\(chaseWhenIdle ? 1 : 0) "
+            + "antics=\(anticsEnabled ? 1 : 0) "
             + "tray=\(trayHidden ? "hidden" : "shown") "
             + "cli=\(cliReachable ? "ok" : "needs-path") "
             + "size=\(Int(artScale * 100))%\n"
@@ -55,6 +56,8 @@ extension AppDelegate {
             if hidden { window.orderOut(nil) } else { place(); window.orderFrontRegardless() }
         }
         chaseWhenIdle = d.bool(forKey: "petChase")
+        anticsEnabled = !d.bool(forKey: "petAnticsOff")
+        if !anticsEnabled { endIdleAct() }
         bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
         if !bubblesEnabled { hideBubbles() }
         // a missing key means the default size, which is how `pet size reset`
@@ -250,7 +253,12 @@ extension AppDelegate {
         guard parts.count >= 3, let ts = TimeInterval(parts[2]) else { return }
         let newEvent = parts[0], newTool = parts[1]
         if ts != lastStamp || newEvent != event {
-            if ts != lastStamp { idleSince = Date() }
+            if ts != lastStamp {
+                idleSince = Date()
+                // real activity trumps any antic in progress
+                endIdleAct()
+                nextActQuiet = 0
+            }
             lastStamp = ts; event = newEvent; tool = newTool
             if !newTool.isEmpty { lastTool = newTool }
         }
@@ -264,6 +272,10 @@ extension AppDelegate {
 
         func idlePose() {
             view.label = nil
+            if anticsEnabled && !hidden {
+                boredPose(quiet: quiet)
+                return
+            }
             if quiet > 25 {
                 view.pose = .sleeping; view.zPhase += 0.006 * tickScale
             } else if quiet > 10 && Int(quiet) % 6 < 2 {
@@ -295,6 +307,91 @@ extension AppDelegate {
         default:
             idlePose()
         }
+    }
+
+    // MARK: idle antics
+
+    /// A bored pet does something on its own now and then: wanders a few
+    /// steps, waves at the user, or gets grumpy about being ignored. Sleep
+    /// still wins in the end, so overnight the loop stays at its slow rates.
+    func boredPose(quiet: TimeInterval) {
+        if quiet > anticsSleepAt {
+            endIdleAct()
+            view.pose = .sleeping
+            view.zPhase += 0.006 * tickScale
+            return
+        }
+        if let act = idleAct {
+            // A wander ends at its target (or a safety timeout, in case the
+            // walk was blocked); a timed act ends when it expires.
+            let done =
+                act == .running
+                ? wanderTarget == nil || Date() >= idleActUntil
+                : Date() >= idleActUntil
+            if !done {
+                // While wandering the movement code sets .running; sitting is
+                // only the fallback for the final step onto the target.
+                view.pose = act == .running ? .sitting : act
+                return
+            }
+            endIdleAct()
+            nextActQuiet = quiet + .random(in: 9...24)
+        }
+        if nextActQuiet < 8 { nextActQuiet = quiet + .random(in: 6...16) }  // first boredom
+        if quiet >= nextActQuiet {
+            startIdleAct(quiet: quiet)
+            return
+        }
+        if quiet > 10 && Int(quiet) % 6 < 2 {
+            view.pose = .grooming
+        } else {
+            view.pose = .sitting
+        }
+    }
+
+    /// Pick the next antic. The longer it has been ignored, the likelier it
+    /// is to sulk; with chase on the pet already walks, so it never wanders.
+    func startIdleAct(quiet: TimeInterval) {
+        let grumpy = quiet > 60
+        let roll = Double.random(in: 0..<1)
+        let wanderShare = chaseWhenIdle ? 0.0 : 0.4
+        if roll < wanderShare {
+            idleAct = .running
+            wanderTarget = randomWanderPoint()
+            // long enough to cross the screen, then give up on a blocked walk
+            let dist = abs((wanderTarget?.x ?? pos.x) - pos.x)
+            idleActUntil = Date().addingTimeInterval(Double(dist) / 280 + 4)
+            view.pose = .sitting
+        } else if roll < wanderShare + (grumpy ? 0.2 : 0.35) {
+            idleAct = .waving
+            idleActUntil = Date().addingTimeInterval(.random(in: 2.2...3.4))
+            view.pose = .waving
+        } else {
+            idleAct = .angry
+            idleActUntil = Date().addingTimeInterval(.random(in: 2.4...4))
+            view.pose = .angry
+        }
+    }
+
+    func endIdleAct() {
+        idleAct = nil
+        wanderTarget = nil
+    }
+
+    /// A stroll target anywhere along the current screen's floor, at least a
+    /// real walk away — never a two-pixel shuffle against an edge.
+    func randomWanderPoint() -> CGPoint {
+        let screen =
+            NSScreen.screens.first { $0.frame.contains(pos) } ?? NSScreen.main
+            ?? NSScreen.screens[0]
+        let f = screen.visibleFrame
+        for _ in 0..<4 {
+            let x = CGFloat.random(in: (f.minX + 60)...(f.maxX - 60))
+            if abs(x - pos.x) > 150 { return clampToScreen(CGPoint(x: x, y: pos.y)) }
+        }
+        // a narrow screen or unlucky rolls: head for the far side
+        let far = pos.x < f.midX ? f.maxX - 60 : f.minX + 60
+        return clampToScreen(CGPoint(x: far, y: pos.y))
     }
 
     /// Sprite pets animate at a fixed rate regardless of the 30fps redraw.
@@ -405,6 +502,9 @@ extension AppDelegate {
         if chaseWhenIdle && !active {
             let m = CGPoint(x: mouse.x, y: mouse.y - 40)
             if hypot(m.x - pos.x, m.y - pos.y) > 46 { target = m }
+        }
+        if let w = wanderTarget, !active {  // a bored stroll to nowhere much
+            if hypot(w.x - pos.x, w.y - pos.y) < 8 { wanderTarget = nil } else { target = w }
         }
         let dx = target.x - pos.x, dy = target.y - pos.y, dist = hypot(dx, dy)
         if dist > 2 {

@@ -146,6 +146,14 @@ extension AppDelegate {
         chaseItem.image = menuSymbol("cursorarrow.motionlines")
         behaviorMenu.addItem(chaseItem)
 
+        anticsItem = NSMenuItem(
+            title: "Antics When Bored",
+            action: #selector(toggleAntics), keyEquivalent: "")
+        anticsItem.target = self
+        anticsItem.state = anticsEnabled ? .on : .off
+        anticsItem.image = menuSymbol("figure.wave")
+        behaviorMenu.addItem(anticsItem)
+
         bubbleItem = NSMenuItem(
             title: "Show Activity Bubbles",
             action: #selector(toggleBubbles), keyEquivalent: "")
@@ -244,6 +252,7 @@ extension AppDelegate {
         statusRow?.title = statusSummary()
         visItem?.title = hidden ? "Show Pet" : "Hide Pet"
         chaseItem?.state = chaseWhenIdle ? .on : .off
+        anticsItem?.state = anticsEnabled ? .on : .off
         bubbleItem?.state = bubblesEnabled ? .on : .off
         chimeItem?.state = chimeEnabled ? .on : .off
     }

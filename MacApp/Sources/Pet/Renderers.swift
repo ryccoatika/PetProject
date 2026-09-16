@@ -152,6 +152,7 @@ enum Renderers {
         let specs: [(Pose, String?)] = [
             (.thinking, "thinking"), (.working, "Edit"), (.alert, "needs you"),
             (.celebrate, "done"), (.sitting, "held"), (.sleeping, nil),
+            (.waving, nil), (.angry, nil),
         ]
         let loaded = SkinStore.load().skins
         let pets = SpriteStore.load()
