@@ -113,6 +113,8 @@ the pet simply idles, wanders and sleeps.
 
 - **Drag** the pet anywhere; the drop position is remembered.
 - **Double-click** toggles chase mode (follow the cursor while Claude is idle).
+- **Right-click** pops a small Behaviour menu on the pet itself: chase cursor,
+  antics when bored, and the activity bubbles.
 - **Flick** the pet to throw it — it tumbles through the air, squashes against
   the screen edges as it bounces, and flashes how fast you flung it. With
   chase mode on it still throws, then heads back to the cursor.
