@@ -182,7 +182,7 @@ extension AppDelegate {
 
         behaviorMenu.addItem(.separator())
         let hint = NSMenuItem(
-            title: "Drag to move · double-click to chase · flick to throw",
+            title: "Drag to move · double-click to chase · flick to throw · right-click for toggles",
             action: nil, keyEquivalent: "")
         hint.isEnabled = false
         behaviorMenu.addItem(hint)
@@ -246,6 +246,27 @@ extension AppDelegate {
         sizeSlider?.doubleValue = 1
         sizeReadout?.stringValue = sizeLabel()
         sizeResetItem?.isEnabled = false
+    }
+
+    /// The right-click menu on the pet itself: the Behaviour toggles without
+    /// a trip to the menu bar. Built fresh each pop so the ticks are current.
+    func showBehaviorContextMenu(with event: NSEvent) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let toggles: [(String, Selector, Bool, String)] = [
+            ("Chase cursor when idle", #selector(toggleChase), chaseWhenIdle,
+             "cursorarrow.motionlines"),
+            ("Antics When Bored", #selector(toggleAntics), anticsEnabled, "figure.wave"),
+            ("Show Activity Bubbles", #selector(toggleBubbles), bubblesEnabled, "bubble.left"),
+        ]
+        for (title, action, on, symbol) in toggles {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            item.state = on ? .on : .off
+            item.image = menuSymbol(symbol)
+            menu.addItem(item)
+        }
+        NSMenu.popUpContextMenu(menu, with: event, for: view)
     }
 
     func refreshMenu() {

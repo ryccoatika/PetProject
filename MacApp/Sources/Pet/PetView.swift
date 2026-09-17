@@ -25,6 +25,7 @@ final class PetView: NSView {
     var dragMove: ((NSPoint) -> Void)?  // receives the new window origin
     var dragEnd: (() -> Void)?
     var doubleClick: (() -> Void)?
+    var rightClick: ((NSEvent) -> Void)?  // pops the Behaviour menu
     private var grabOffset = CGSize.zero
     private var dragActive = false
 
@@ -60,6 +61,7 @@ final class PetView: NSView {
         held = false
         dragEnd?()
     }
+    override func rightMouseDown(with e: NSEvent) { rightClick?(e) }
 
     override var isFlipped: Bool { false }
 

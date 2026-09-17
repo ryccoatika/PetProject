@@ -10,6 +10,14 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-09-17
+
+### Added
+
+- **Right-click the pet** for a small Behaviour menu: toggle chase cursor,
+  antics when bored, and the activity bubbles in place, without a trip to the
+  menu bar.
+
 ## [1.0.2] - 2026-09-16
 
 ### Added
