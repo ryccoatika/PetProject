@@ -1,10 +1,23 @@
 //  AppDelegate+Updates.swift
 //  Desktop Pet
 //
-//  Checking GitHub for a newer release. Never downloads anything — a newer
-//  version is offered as a link to the releases page.
+//  Checking GitHub for a newer release, and installing it in place. The app
+//  downloads the release zip itself — so it never gains a quarantine
+//  attribute — verifies its checksum and version, swaps the bundle, and
+//  relaunches. Nothing installs without a click.
 
 import Cocoa
+import CryptoKit
+
+/// What the latest GitHub release offers the updater.
+struct ReleaseInfo {
+    let tag: String
+    /// The DesktopPet-x.y.z.zip asset, when the release has one.
+    let zipURL: URL?
+    /// The zip's SHA-256, published in the release notes. The updater
+    /// refuses to install without it.
+    let sha256: String?
+}
 
 extension AppDelegate {
 
@@ -30,8 +43,8 @@ extension AppDelegate {
         return false
     }
 
-    /// The latest release tag, off the main thread.
-    func fetchLatestReleaseTag(_ done: @escaping (Result<String, Error>) -> Void) {
+    /// The latest release — tag, zip asset and checksum — off the main thread.
+    func fetchLatestRelease(_ done: @escaping (Result<ReleaseInfo, Error>) -> Void) {
         var request = URLRequest(url: Self.latestRelease, timeoutInterval: 10)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         URLSession.shared.dataTask(with: request) { data, _, error in
@@ -48,7 +61,14 @@ extension AppDelegate {
                                 NSLocalizedDescriptionKey: "Unexpected answer from GitHub."
                             ])))
             }
-            done(.success(tag))
+            let assets = json["assets"] as? [[String: Any]] ?? []
+            let zip = assets.first { ($0["name"] as? String ?? "").hasSuffix(".zip") }
+            let zipURL = (zip?["browser_download_url"] as? String).flatMap(URL.init(string:))
+            // the checksum is the one 64-hex token in the release notes
+            let body = json["body"] as? String ?? ""
+            let sha = body.range(of: "[a-fA-F0-9]{64}", options: .regularExpression)
+                .map { String(body[$0]).lowercased() }
+            done(.success(ReleaseInfo(tag: tag, zipURL: zipURL, sha256: sha)))
         }.resume()
     }
 
@@ -56,12 +76,13 @@ extension AppDelegate {
         NSWorkspace.shared.open(Self.releasesPage)
     }
 
-    /// The About button: spin in place while GitHub answers, then say what
-    /// it said. About stays open the whole time.
+    /// The About button and the menu's update row: spin in place while
+    /// GitHub answers, then say what it said. About stays open the whole
+    /// time.
     @objc func checkForUpdates() {
         aboutCheckButton?.isEnabled = false
         aboutSpinner?.startAnimation(nil)
-        fetchLatestReleaseTag { result in
+        fetchLatestRelease { result in
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.aboutSpinner?.stopAnimation(nil)
@@ -72,18 +93,26 @@ extension AppDelegate {
     }
 
     /// As a sheet on the About window when it is open, else its own dialog.
-    private func showUpdateResult(_ result: Result<String, Error>) {
+    private func showUpdateResult(_ result: Result<ReleaseInfo, Error>) {
         let alert = NSAlert()
-        var offersRelease = false
+        var offer: ReleaseInfo?
         switch result {
-        case .success(let tag) where Self.isNewer(tag, than: Build.version):
-            rememberAvailableUpdate(tag)
-            alert.messageText = "Pet \(tag) is available"
-            alert.informativeText =
-                "You have \(Build.version). The new version is on the releases page."
-            alert.addButton(withTitle: "Open Releases Page")
+        case .success(let release) where Self.isNewer(release.tag, than: Build.version):
+            rememberAvailableUpdate(release.tag)
+            alert.messageText = "Pet \(release.tag) is available"
+            if release.zipURL != nil && release.sha256 != nil {
+                alert.informativeText =
+                    "You have \(Build.version). Install Update downloads it, verifies it "
+                    + "and relaunches — settings and skins stay put."
+                alert.addButton(withTitle: "Install Update")
+                offer = release
+            } else {
+                // an old release without the zip or checksum: manual it is
+                alert.informativeText =
+                    "You have \(Build.version). The new version is on the releases page."
+                alert.addButton(withTitle: "Open Releases Page")
+            }
             alert.addButton(withTitle: "Later")
-            offersRelease = true
         case .success:
             rememberAvailableUpdate(nil)
             alert.messageText = "You're up to date"
@@ -93,7 +122,12 @@ extension AppDelegate {
             alert.informativeText = error.localizedDescription
         }
         let react: (NSApplication.ModalResponse) -> Void = { [weak self] response in
-            if offersRelease && response == .alertFirstButtonReturn {
+            guard response == .alertFirstButtonReturn else { return }
+            if let offer {
+                self?.installUpdate(offer)
+            } else if case .success(let release) = result,
+                Self.isNewer(release.tag, than: Build.version)
+            {
                 self?.openReleasesPage()
             }
         }
@@ -105,8 +139,134 @@ extension AppDelegate {
         }
     }
 
+    // MARK: installing
+
+    /// Download, verify, swap and relaunch. Every step must succeed before
+    /// anything is touched; a failure leaves the current app exactly as it
+    /// was and says what went wrong.
+    func installUpdate(_ release: ReleaseInfo) {
+        guard let zipURL = release.zipURL, let sha = release.sha256 else { return }
+        aboutCheckButton?.isEnabled = false
+        aboutSpinner?.startAnimation(nil)
+        flash("updating…")
+
+        URLSession.shared.downloadTask(with: zipURL) { file, _, error in
+            let outcome: Result<Void, Error>
+            if let file {
+                outcome = Result {
+                    try Self.applyUpdate(zip: file, sha256: sha, tag: release.tag)
+                }
+            } else {
+                outcome = .failure(
+                    error
+                        ?? NSError(
+                            domain: "pet", code: 2,
+                            userInfo: [NSLocalizedDescriptionKey: "The download failed."]))
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.aboutSpinner?.stopAnimation(nil)
+                self.aboutCheckButton?.isEnabled = true
+                switch outcome {
+                case .success:
+                    self.relaunch()
+                case .failure(let error):
+                    self.showUpdateFailure(error)
+                }
+            }
+        }.resume()
+    }
+
+    /// The verified swap, off the main thread. Throws rather than limping on.
+    private static func applyUpdate(zip: URL, sha256: String, tag: String) throws {
+        func bail(_ message: String) -> NSError {
+            NSError(domain: "pet", code: 3, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+
+        // 1. checksum: the download must be byte-for-byte what was published
+        let data = try Data(contentsOf: zip)
+        let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard digest == sha256 else {
+            throw bail("The download did not match the published checksum.")
+        }
+
+        // 2. unpack next to nothing that matters
+        let fm = FileManager.default
+        let work = fm.temporaryDirectory.appendingPathComponent("pet-update-\(tag)")
+        try? fm.removeItem(at: work)
+        try fm.createDirectory(at: work, withIntermediateDirectories: true)
+        let ditto = Process()
+        ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        ditto.arguments = ["-x", "-k", zip.path, work.path]
+        try ditto.run()
+        ditto.waitUntilExit()
+        guard ditto.terminationStatus == 0 else { throw bail("The download would not unpack.") }
+        let newApp = work.appendingPathComponent("Pet.app")
+        let newBinary = newApp.appendingPathComponent("Contents/MacOS/Pet")
+        guard fm.fileExists(atPath: newBinary.path) else {
+            throw bail("The download did not contain Pet.app.")
+        }
+
+        // 3. the new binary must run and be the version the tag promised
+        let probe = Process()
+        probe.executableURL = newBinary
+        probe.arguments = ["--version"]
+        let out = Pipe()
+        probe.standardOutput = out
+        try probe.run()
+        probe.waitUntilExit()
+        let printed =
+            String(
+                data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let bare = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        guard probe.terminationStatus == 0, printed.contains(bare) else {
+            throw bail("The downloaded app reported the wrong version.")
+        }
+
+        // 4. swap: old aside, new in place; put the old one back on failure
+        let current = Bundle.main.bundleURL
+        let aside = work.appendingPathComponent("Pet.app.previous")
+        try fm.moveItem(at: current, to: aside)
+        do {
+            try fm.moveItem(at: newApp, to: current)
+        } catch {
+            try? fm.moveItem(at: aside, to: current)
+            throw error
+        }
+    }
+
+    /// Hand over to the new copy: open it after this process has gone.
+    private func relaunch() {
+        let path = Bundle.main.bundleURL.path
+        let handoff = Process()
+        handoff.executableURL = URL(fileURLWithPath: "/bin/sh")
+        handoff.arguments = ["-c", "sleep 0.5; /usr/bin/open \"\(path)\""]
+        try? handoff.run()
+        NSApp.terminate(nil)
+    }
+
+    private func showUpdateFailure(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Could not install the update"
+        alert.informativeText =
+            error.localizedDescription + "\nNothing was changed — the releases page still works."
+        alert.addButton(withTitle: "Open Releases Page")
+        alert.addButton(withTitle: "Later")
+        let react: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            if response == .alertFirstButtonReturn { self?.openReleasesPage() }
+        }
+        if let window = aboutWindow, window.isVisible {
+            alert.beginSheetModal(for: window, completionHandler: react)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            react(alert.runModal())
+        }
+    }
+
+    // MARK: the quiet check
+
     /// The quiet check on launch: at most once a day, and a newer version
-    /// only becomes a menu row — never a dialog.
+    /// only becomes a menu row — never a dialog, never a download.
     func checkForUpdatesQuietly() {
         // what an earlier launch already found, so the row survives a restart
         if let stored = Prefs.store.string(forKey: "petUpdateAvailable"),
@@ -120,12 +280,12 @@ extension AppDelegate {
 
         let last = Prefs.store.double(forKey: "petUpdateChecked")
         guard Date().timeIntervalSince1970 - last > 86_400 else { return }
-        fetchLatestReleaseTag { result in
-            guard case .success(let tag) = result else { return }  // quietly try again tomorrow
+        fetchLatestRelease { result in
+            guard case .success(let release) = result else { return }  // try again tomorrow
             DispatchQueue.main.async { [weak self] in
                 Prefs.store.set(Date().timeIntervalSince1970, forKey: "petUpdateChecked")
                 self?.rememberAvailableUpdate(
-                    Self.isNewer(tag, than: Build.version) ? tag : nil)
+                    Self.isNewer(release.tag, than: Build.version) ? release.tag : nil)
             }
         }
     }

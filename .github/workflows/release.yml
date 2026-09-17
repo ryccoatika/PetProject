@@ -75,6 +75,18 @@ jobs:
         working-directory: MacApp
         run: ./dmg.sh
 
+      # The zip is what the app's own updater downloads: it unpacks cleanly
+      # with ditto and, fetched by the app itself, never gains a quarantine
+      # attribute. Its checksum goes into the notes so the updater can verify
+      # the download before swapping anything.
+      - name: Zip the app for the in-app updater
+        if: steps.version.outputs.fresh == 'true'
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          ditto -c -k --keepParent "MacApp/build/Pet.app" "MacApp/build/DesktopPet-$VERSION.zip"
+          SHA=$(shasum -a 256 "MacApp/build/DesktopPet-$VERSION.zip" | cut -d' ' -f1)
+          printf '\nSHA-256 (`DesktopPet-%s.zip`): `%s`\n' "$VERSION" "$SHA" >> RELEASE_NOTES.md
+
       - name: Publish
         if: steps.version.outputs.fresh == 'true'
         env:
@@ -84,7 +96,8 @@ jobs:
           gh release create "v$VERSION" \
             --title "v$VERSION" \
             --notes-file RELEASE_NOTES.md \
-            "MacApp/build/DesktopPet-$VERSION.dmg"
+            "MacApp/build/DesktopPet-$VERSION.dmg" \
+            "MacApp/build/DesktopPet-$VERSION.zip"
 
       - name: Keep the disk image on the run as well
         if: steps.version.outputs.fresh == 'true'

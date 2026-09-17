@@ -33,7 +33,7 @@ extension AppDelegate {
         if let tag = updateAvailable {
             let update = NSMenuItem(
                 title: "Update available — \(tag)",
-                action: #selector(openReleasesPage), keyEquivalent: "")
+                action: #selector(checkForUpdates), keyEquivalent: "")
             update.target = self
             update.image = menuSymbol("arrow.down.circle")
             mainMenu.addItem(update)
