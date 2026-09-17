@@ -10,6 +10,18 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-09-17
+
+### Added
+
+- **Install updates in place**: when Check for Updates (or the menu's update
+  row) finds a newer release, an Install Update button downloads it, verifies
+  its published SHA-256 and its reported version, swaps the app bundle and
+  relaunches — no browser, no quarantine prompt, settings and skins untouched.
+  A failed check or download changes nothing and falls back to the releases
+  page. Releases now ship a `.zip` alongside the `.dmg` for this, with the
+  checksum in the release notes.
+
 ## [1.0.3] - 2026-09-17
 
 ### Added

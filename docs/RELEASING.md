@@ -14,7 +14,12 @@ For maintainers. A release is cut by merging `develop` into `main`.
 The Release workflow then does the rest: it reads `VERSION`, stops if that tag
 already exists, takes the notes for that version out of `CHANGELOG.md`, builds
 the disk image, creates the `vx.y.z` tag, and publishes a GitHub release with
-the `.dmg` attached.
+the `.dmg` and a `.zip` attached.
+
+The zip is what the app's in-app updater downloads: its SHA-256 is appended to
+the release notes, and the updater refuses to install a download whose
+checksum or reported version does not match. Do not edit that checksum line
+out of the published notes.
 
 ## If it does not publish
 
