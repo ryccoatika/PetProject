@@ -126,6 +126,19 @@ appending the usage line to whatever it printed; uninstalling reads the same
 file to hand the slot back. The same ownership and reconcile rules apply —
 a `statusLine` we do not recognise as ours is never touched, coming or going.
 
+Codex has no equivalent slot to claim — its only external hook carries turn
+metadata, never usage — so nothing is installed into its config at all.
+Instead `CodexUsage.pollAll()` runs on a 30-second timer, reading the tail of
+whichever rollout file under `~/.codex/sessions` (or a sibling `~/.codex-*`)
+was modified most recently, and writes into the same `<configDir>/usage/`
+store Claude's statusline feeds. The shape it looks for (`rate_limits`
+holding `primary`/`secondary` windows with `used_percent`/`resets_at`) comes
+from reading Codex's own source rather than a published contract — there
+isn't one — so the search is bounded-depth rather than a fixed path, more
+likely to survive a small wrapper change than an exact one would, but this
+is unofficial and can break outright on a bigger one. Uninstalling a Codex
+account still clears its recorded reading, the same as Claude's.
+
 ## Drawing
 
 `PetView` draws in a fixed design space — 170×165 for the drawn art, 210×240
@@ -188,7 +201,8 @@ MacApp/
     Skin, SkinStore           drawn skins: the format, finding and seeding them
     SpritePet, SpriteStore, SpriteInstaller    codex-pets packs
     HookHost, HookPlugin, OpencodePlugin, AgentCommands   agent integration
-    UsageStore, UsageBadge   Claude's rate-limit numbers, via `pet statusline`
+    UsageStore, UsageBadge   Claude's and Codex's own rate-limit numbers
+    CodexUsage               polls Codex's session files for its own usage
     ActivityBubbles          per-session cards above the pet
     PetView, PetView+Art      view state and dragging / how each pose is drawn
     Renderers                 icon, disk image background, contact sheets

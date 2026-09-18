@@ -101,21 +101,25 @@ A few things follow from having every session in view:
 - `pet stats` (and a line in About) tallies today's sessions, tools run and
   active time.
 
-## Claude usage badge
+## Usage badge
 
-With the Claude Code plugin installed, a small badge below the pet shows the
-two numbers `/usage` does — the rolling 5-hour session limit and the 7-day
-week limit across every Claude model — as a pair of concentric rings: outer
-for the week, inner for the session, the more urgent of the two as the
-number in the middle — no caption under the ring by default, so **hover a
-ring to see which account it is**. Running several Claude accounts at once
-(`~/.claude`, `~/.claude-account1`, …) shows one ring pair per account,
-side by side, up to 6; `pet usage` prints every account with no cap.
-`pet usage show | hide` (or **Show Claude Usage Below Pet** in the menu or
-the pet's right-click menu) toggles the badge. Needs a Pro or Max plan, and
-only appears after a session's first response — see [Agent
-plugins](PLUGINS.md#claude-usage-badge) for how it gets the data and how to
-wire up more than one account.
+With the Claude Code and/or Codex plugin installed, a small badge below the
+pet shows each account's own rate-limit numbers as a pair of concentric
+rings: outer for the longer window, inner for the shorter one, the more
+urgent of the two as the number in the middle — no caption under the ring
+by default, so **hover a ring to see which account it is** (its config
+folder, agent name included: `~/.claude` → Claude, `~/.codex-account1` →
+Codex · account1). Running several accounts of either agent at once shows
+one ring pair per account, side by side, up to 6; `pet usage` prints every
+account with no cap. `pet usage show | hide` (or **Show Usage Below Pet** in
+the menu or the pet's right-click menu) toggles the badge.
+
+Claude's numbers need a Pro or Max plan and only appear after a session's
+first response; Codex's come from its own local session files rather than
+anything Claude-style pushed to `pet`, so they can lag slightly and rely on
+an unofficial, undocumented format. See [Agent
+plugins](PLUGINS.md#usage-badge) for how each agent's numbers actually get
+to `pet` and how to wire up more than one account.
 
 `pet event <name>` is what writes that line: agent hooks call the CLI
 directly, so there is no generated shell script anywhere. With `--allow` it

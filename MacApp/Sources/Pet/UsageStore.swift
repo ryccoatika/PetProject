@@ -1,12 +1,15 @@
 //  UsageStore.swift
 //  Desktop Pet
 //
-//  Claude's own rate-limit usage — the numbers /usage shows — read from
-//  Claude Code's statusLine payload (hooks never receive them) and written
-//  to one small file per Claude account, so running several accounts at
-//  once (~/.claude, ~/.claude-account1, …) shows all of them rather than
-//  the last one to write clobbering the rest. See `pet statusline` in
-//  CLI+Usage.swift for where the file is written.
+//  Rate-limit usage for the badge below the pet: a rolling short window and
+//  a longer one, one small file per account, so running several accounts of
+//  the same agent at once (~/.claude, ~/.claude-account1, …) shows all of
+//  them rather than the last one to write clobbering the rest.
+//
+//  Claude Code pushes its numbers to `pet statusline` (see CLI+Usage.swift);
+//  Codex has no equivalent, so `pet` polls its own session files instead
+//  (see CodexUsage.swift). Both write through the same `write(...)` here,
+//  which is why this file knows nothing about either agent's own format.
 
 import Foundation
 
@@ -28,7 +31,10 @@ enum UsageStore {
         let stamp: TimeInterval
 
         var age: TimeInterval { Date().timeIntervalSince1970 - stamp }
-        /// The friendly caption for the badge and `pet usage`.
+        /// The friendly caption for the badge and `pet usage` — the config
+        /// folder's own name with a leading agent prefix ("claude"/"codex")
+        /// trimmed, so "claude-account1" and "codex-account1" both read
+        /// simply as "account1".
         var label: String { UsageStore.displayLabel(forKey: account) }
         /// The more urgent of the two — what a glance most needs to know.
         var worstPercent: Double? {
@@ -50,45 +56,62 @@ enum UsageStore {
     /// Always unique — two different folders can never collide, however
     /// they are named — unlike a shortened display label, which is only
     /// cosmetic.
-    static func accountKey(for claudeDir: URL) -> String {
-        var name = claudeDir.lastPathComponent
+    static func accountKey(for configDir: URL) -> String {
+        var name = configDir.lastPathComponent
         if name.hasPrefix(".") { name.removeFirst() }
-        if name.isEmpty { name = "claude" }
+        if name.isEmpty { name = "config" }
         return String(name.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" })
     }
 
-    /// A friendlier caption derived from the stored key: "claude" (plain
-    /// ~/.claude) → "default", a "claude" prefix followed by "-" or "_" is
-    /// dropped so "claude-account1" → "account1" and "claude1" → "1". Purely
-    /// cosmetic — two keys that happen to shorten to the same word (
-    /// "claude-work" and "claude_work", say) still keep separate readings;
-    /// only their caption would coincide, which no real setup does by
-    /// accident.
+    /// The agents whose config folders can end up in the same badge — the
+    /// prefix a key may start with, and the name to show for it. A bare
+    /// ~/.claude and a bare ~/.codex are both extremely common at once, so
+    /// the agent name always stays in the caption rather than both
+    /// collapsing to the same "default" — collapsing them was a real bug,
+    /// not a hypothetical one: the first time Codex usage was added
+    /// alongside Claude's, both showed up captioned "default" with no way
+    /// to tell them apart.
+    private static let agents: [(prefix: String, name: String)] = [
+        ("claude", "Claude"), ("codex", "Codex"),
+    ]
+
+    /// True for a bare agent config folder (~/.claude, ~/.codex) — sorts
+    /// before any named sub-account.
+    static func isDefaultKey(_ key: String) -> Bool { agents.contains { $0.prefix == key } }
+
+    /// A friendlier caption derived from the stored key: a bare agent name
+    /// → the agent's own name ("Claude", "Codex"); an agent prefix followed
+    /// by "-" or "_" keeps the agent name and appends the rest, so
+    /// "claude-account1" → "Claude · account1" and "codex1" → "Codex · 1".
+    /// Two keys that happen to shorten to the same suffix ("claude-work" and
+    /// "codex-work", say) still keep separate readings and separate
+    /// captions — only a literal same-agent, same-suffix collision like
+    /// "claude-work" vs "claude_work" would share a caption, which no real
+    /// setup does by accident.
     static func displayLabel(forKey key: String) -> String {
-        guard key != "claude" else { return "default" }
-        var name = key
-        if name.hasPrefix("claude") {
-            name.removeFirst("claude".count)
-            while name.hasPrefix("-") || name.hasPrefix("_") { name.removeFirst() }
+        for (prefix, name) in agents where key.hasPrefix(prefix) {
+            guard key != prefix else { return name }
+            var suffix = key
+            suffix.removeFirst(prefix.count)
+            while suffix.hasPrefix("-") || suffix.hasPrefix("_") { suffix.removeFirst() }
+            return suffix.isEmpty ? name : "\(name) · \(suffix)"
         }
-        return name.isEmpty ? "default" : name
+        return key
     }
 
-    /// One line: sessionPct|sessionResets|weekPct|weekResets|stamp. A field
-    /// is empty when Claude Code did not report that window.
-    static func write(rateLimits: [String: Any], claudeDir: URL) {
-        func window(_ key: String) -> (Double?, TimeInterval?) {
-            guard let w = rateLimits[key] as? [String: Any] else { return (nil, nil) }
-            return (w["used_percentage"] as? Double, w["resets_at"] as? TimeInterval)
-        }
-        let (sessionPct, sessionResets) = window("five_hour")
-        let (weekPct, weekResets) = window("seven_day")
-        guard sessionPct != nil || weekPct != nil else { return }  // nothing worth keeping
+    /// One line: sessionPct|sessionResets|weekPct|weekResets|stamp. Pass
+    /// `nil` for a window the agent did not report; a reading with neither
+    /// window is not worth keeping and is silently dropped.
+    static func write(
+        sessionPercent: Double?, sessionResetsAt: TimeInterval?,
+        weekPercent: Double?, weekResetsAt: TimeInterval?, configDir: URL
+    ) {
+        guard sessionPercent != nil || weekPercent != nil else { return }
 
         func field(_ d: Double?) -> String { d.map { String($0) } ?? "" }
         let line =
-            "\(field(sessionPct))|\(field(sessionResets))|\(field(weekPct))|\(field(weekResets))"
-            + "|\(Int(Date().timeIntervalSince1970))\n"
+            "\(field(sessionPercent))|\(field(sessionResetsAt))|\(field(weekPercent))"
+            + "|\(field(weekResetsAt))|\(Int(Date().timeIntervalSince1970))\n"
         var isDir: ObjCBool = false
         let fm = FileManager.default
         if fm.fileExists(atPath: directory.path, isDirectory: &isDir), !isDir.boolValue {
@@ -96,7 +119,7 @@ enum UsageStore {
         }
         try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
         try? line.write(
-            to: directory.appendingPathComponent(accountKey(for: claudeDir)), atomically: true,
+            to: directory.appendingPathComponent(accountKey(for: configDir)), atomically: true,
             encoding: .utf8)
     }
 
@@ -123,13 +146,11 @@ enum UsageStore {
                     sessionResetsAt: TimeInterval(parts[1]), weekPercent: Double(parts[2]),
                     weekResetsAt: TimeInterval(parts[3]), stamp: stamp))
         }
-        // "claude" (plain ~/.claude, what almost everyone has) first, then
+        // A bare agent default (~/.claude, ~/.codex) first, then
         // alphabetically by key, so the row does not reshuffle from tick to
         // tick even if two accounts share a shortened display label.
-        return snapshots.sorted {
-            ($0.account == "claude" ? "" : $0.account)
-                < ($1.account == "claude" ? "" : $1.account)
-        }
+        func sortKey(_ account: String) -> String { isDefaultKey(account) ? "" : account }
+        return snapshots.sorted { sortKey($0.account) < sortKey($1.account) }
     }
 
     static func humanReset(_ epoch: TimeInterval?) -> String? {

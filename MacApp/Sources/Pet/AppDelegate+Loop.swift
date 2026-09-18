@@ -496,6 +496,12 @@ extension AppDelegate {
 
         if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
 
+        sinceCodexUsagePoll += dt
+        if sinceCodexUsagePoll >= 30 {
+            sinceCodexUsagePoll = 0
+            DispatchQueue.global(qos: .utility).async { CodexUsage.pollAll() }
+        }
+
         sinceBubbleRead += dt
         if sinceBubbleRead >= 0.5 {
             sinceBubbleRead = 0

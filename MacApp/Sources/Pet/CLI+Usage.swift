@@ -3,7 +3,9 @@
 //
 //  `pet statusline` — installed into Claude Code's statusLine setting so the
 //  app can read the rate-limit numbers hooks never receive. `pet usage` is
-//  the human-facing readout of the same files.
+//  the human-facing readout of the same files, which Codex feeds too — see
+//  CodexUsage.swift for how, since it has no statusLine equivalent to push
+//  through.
 
 import Cocoa
 
@@ -24,7 +26,15 @@ extension CLI {
         }
 
         if let rateLimits = json["rate_limits"] as? [String: Any] {
-            UsageStore.write(rateLimits: rateLimits, claudeDir: claudeDir)
+            func window(_ key: String) -> (Double?, TimeInterval?) {
+                guard let w = rateLimits[key] as? [String: Any] else { return (nil, nil) }
+                return (w["used_percentage"] as? Double, w["resets_at"] as? TimeInterval)
+            }
+            let (sessionPct, sessionResets) = window("five_hour")
+            let (weekPct, weekResets) = window("seven_day")
+            UsageStore.write(
+                sessionPercent: sessionPct, sessionResetsAt: sessionResets,
+                weekPercent: weekPct, weekResetsAt: weekResets, configDir: claudeDir)
         }
 
         if let previous = HookPlugin.previousStatusLineCommand(claudeDir: claudeDir) {
@@ -50,8 +60,8 @@ extension CLI {
         exit(0)
     }
 
-    /// `pet usage` — the numbers /usage shows, one line per Claude account
-    /// with a fresh reading.
+    /// `pet usage` — the numbers /usage (or Codex's own status line) shows,
+    /// one line per account with a fresh reading.
     static func usage(_ action: String?) {
         Prefs.refresh()
         switch action {
@@ -63,9 +73,12 @@ extension CLI {
         case nil, "status":
             let snapshots = UsageStore.readAll()
             guard !snapshots.isEmpty else {
-                print("no usage data yet — needs a Claude Code Pro or Max session")
+                print(
+                    "no usage data yet — needs a Claude Code Pro/Max session, "
+                        + "or Codex having run at least once")
                 return
             }
+            let width = max(10, snapshots.map { $0.label.count }.max() ?? 10)
             for snap in snapshots {
                 var parts: [String] = []
                 if let pct = snap.sessionPercent {
@@ -78,7 +91,7 @@ extension CLI {
                 }
                 let stale = snap.age > UsageStore.staleAfter ? " — stale" : ""
                 print(
-                    "\(snap.label.padding(toLength: 10, withPad: " ", startingAt: 0)) "
+                    "\(snap.label.padding(toLength: width, withPad: " ", startingAt: 0)) "
                         + ": \(parts.joined(separator: " · "))\(stale)")
             }
         default:

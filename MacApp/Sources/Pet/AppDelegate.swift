@@ -134,6 +134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var tickScale: Double { fps / max(currentFPS, 1) }
     var sinceStateRead: Double = 0
     var sinceSave: Double = 0
+    /// Codex has to be polled for its own usage — file IO, so on a much
+    /// slower cadence than the half-second bubble/badge tick.
+    var sinceCodexUsagePoll: Double = 30
     var sinceSpriteFrame: Double = 0
 
     /// Last origin handed to the window server, so an unmoved pet costs

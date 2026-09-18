@@ -31,25 +31,34 @@ Unreleased, and merging into `main`.
   and Cursor get command files. On Codex, create-sprite rides the built-in
   **hatch-pet** skill (and its $imagegen system skill), then installs the
   hatched pet straight into the app.
-- **A Claude usage badge** below the pet: a ring pair per Claude account —
-  outer for the 7-day week limit across every model, inner for the rolling
-  5-hour session limit, the same numbers `/usage` shows, with the more
-  urgent one in the centre and no caption drawn under it — hover a ring to
-  see which account it is. Hooks never receive these, so the Claude Code
-  plugin now also points each config's `statusLine` at `pet statusline`,
-  which records them and, if a custom statusline was already configured,
-  chains to it so nothing breaks. Each account's readings are keyed by its
-  config folder's own name, so two folders can never collide, however they
-  are named, and uninstalling clears that account's reading too, so its ring
-  does not keep looking live until it ages out on its own. Running several
-  accounts at once
-  (`~/.claude`, `~/.claude-account1`, …) shows one ring pair per account,
-  up to 6, side by side — install the plugin once per account with
-  `--path` to wire each one up. `pet usage` prints every account with no
-  cap; `pet usage show | hide`, the menu's **Show Claude Usage Below Pet**,
-  or the pet's right-click menu toggles the badge. Needs a Pro or Max plan.
-  A per-model weekly figure is not included — Anthropic does not expose one
-  outside `/usage`'s own display.
+- **A usage badge** below the pet, for Claude Code and Codex both: a ring
+  pair per account — outer for the longer rate-limit window, inner for the
+  shorter one, the more urgent one in the centre and no caption drawn under
+  it — hover a ring to see which account it is (its config folder, agent
+  name included, so a plain Claude and a plain Codex account installed at
+  once never both just say "default"). Running several accounts of either
+  agent at once shows one ring pair per account, up to 6, side by side.
+  `pet usage` prints every account with no cap; `pet usage show | hide`, the
+  menu's **Show Usage Below Pet**, or the pet's right-click menu toggles the
+  badge.
+
+  Hooks never receive Claude's rate-limit numbers, so the Claude Code plugin
+  also points each config's `statusLine` at `pet statusline` — installed
+  once per account with `--path` — which records them and, if a custom
+  statusline was already configured, chains to it so nothing breaks.
+  Uninstalling restores it and clears that account's reading, so its ring
+  does not keep looking live until it ages out on its own. A per-model
+  weekly figure is not included — Anthropic does not expose one outside
+  `/usage`'s own display.
+
+  Codex has no statusLine equivalent — its only external hook carries turn
+  metadata, never usage — so nothing is installed into its config for this
+  at all: `pet` instead polls Codex's own session files every 30 seconds for
+  the `rate_limits` reading Codex already records for itself, across
+  `~/.codex` and any sibling `~/.codex-*` account. This relies on Codex's
+  internal rollout format, which is unofficial and undocumented — a future
+  Codex release changing it can silently stop this working, unlike Claude's
+  supported `statusLine` contract.
 
 ### Changed
 

@@ -305,16 +305,30 @@ enum HookPlugin {
         }
         applyCommands(host, remove: remove)
         if host.id == "claude" {
-            for dir in claudeSettingsDirs(host) {
+            for dir in hostConfigDirs(host) {
                 mergeStatusLine(claudeDir: dir, remove: remove)
+            }
+        }
+        if host.id == "codex", remove {
+            // Codex has no statusLine-like slot to reclaim — there is
+            // nothing to restore — but its own recorded usage reading
+            // should not outlive the plugin any more than Claude's does.
+            for dir in hostConfigDirs(host) {
+                let file = UsageStore.directory.appendingPathComponent(
+                    UsageStore.accountKey(for: dir))
+                if FileManager.default.fileExists(atPath: file.path) {
+                    try? FileManager.default.removeItem(at: file)
+                    print("  ✓  \(CLI.tilde(dir)) — usage badge data cleared")
+                }
             }
         }
     }
 
-    /// The folders holding a settings.json we just touched, so the status
-    /// line install lands beside the same file(s) — including every
-    /// `--path` the hooks were just registered into.
-    private static func claudeSettingsDirs(_ host: HookHost) -> [URL] {
+    /// The config folders a host's own files just landed in — including
+    /// every `--path` the hooks were just registered into. Used both for
+    /// Claude's statusLine (which lives beside the same settings.json) and
+    /// for clearing a Codex account's recorded usage on uninstall.
+    private static func hostConfigDirs(_ host: HookHost) -> [URL] {
         guard case .json(let files, _, _, _, _) = host.kind else { return [] }
         return files.map { $0.deletingLastPathComponent() }
     }

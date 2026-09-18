@@ -59,31 +59,41 @@ reach for them from a plain request; elsewhere they are command files.
 Antigravity and pi have no equivalent, so they get hooks only. Only files at
 exactly these paths are ever written or removed.
 
-## Claude usage badge
+## Usage badge
 
-Claude Code installs one more thing: its own `statusLine` entry. That is the
-only place Anthropic exposes rate-limit numbers — hooks never receive them —
-so `pet plugin install claude --path <dir>` also points that config's
-`statusLine.command` at `pet statusline --claude-dir <dir>`. That command
-reads the JSON Claude Code sends it and writes the two numbers `/usage`
-shows (the rolling 5-hour "session" window and the 7-day "week, all models"
-window) to `<configDir>/usage/<account>` — one small file per Claude
-account, named after the config folder (`~/.claude` → `default`,
-`~/.claude-account1` → `account1`), so running several accounts at once
-never has one overwrite another. The app polls that folder and draws one
-small ring pair per account below the pet — outer ring the week, inner ring
-the session, centre number the more urgent of the two — capped at 6 accounts
-so the badge cannot grow absurdly wide; `pet usage` has no such cap and
-prints every account. No caption is drawn under a ring; hovering it shows
-that account's name in a small pill above the card instead, so the badge
-stays as small as the rings alone need. The label is self-drawn rather than
-a native tooltip — this window is a borderless overlay owned by an
-accessory app, where AppKit's own tooltip tracking proved unreliable — so
-hover rides the same `NSEvent.mouseLocation` poll the main loop already
-runs every tick for the pet's own hover and drag handling; the window stays
-fully click-through throughout.
-**Show Claude Usage Below Pet** (menu, or the pet's right-click menu)
-toggles the badge.
+A small badge below the pet shows Claude's and Codex's own rate-limit
+numbers — a ring pair per account, outer ring the longer window, inner ring
+the shorter one, the more urgent of the two as the number in the centre. No
+caption is drawn under a ring; hovering it shows that account's name (its
+config folder, with the agent's name — `~/.claude` → **Claude**,
+`~/.claude-account1` → **Claude · account1**, `~/.codex` → **Codex**) in a
+small pill above the card instead, so the badge stays as small as the rings
+alone need — this is why the agent name always stays in the caption rather
+than collapsing to a bare "default": a plain Claude and a plain Codex
+account both being installed at once is the *common* case, not an edge
+case, and both collapsing to the same word left no way to tell them apart.
+The label is self-drawn rather than a native tooltip — this window is a
+borderless overlay owned by an accessory app, where AppKit's own tooltip
+tracking proved unreliable — so hover rides the same `NSEvent.mouseLocation`
+poll the main loop already runs every tick for the pet's own hover and drag
+handling; the window stays fully click-through throughout. Ring pairs sit
+side by side, one per account, capped at 6 so the badge cannot grow
+absurdly wide; `pet usage` has no such cap and prints every account.
+**Show Usage Below Pet** (menu, or the pet's right-click menu) toggles it.
+
+The two agents get the data in entirely different ways:
+
+**Claude Code** installs one more thing beyond hooks: its own `statusLine`
+entry. That is the only place Anthropic exposes rate-limit numbers — hooks
+never receive them — so `pet plugin install claude --path <dir>` also
+points that config's `statusLine.command` at
+`pet statusline --claude-dir <dir>`, which reads the JSON Claude Code sends
+it and writes the rolling 5-hour "session" window and the 7-day "week, all
+models" window (the same two `/usage` shows) into
+`<configDir>/usage/<account>`. `statusLine` holds exactly one command,
+unlike hooks, so a pre-existing custom one is saved beside `settings.json`
+and chained to rather than replaced; uninstalling restores it, and clears
+that account's recorded reading so its ring does not linger.
 
 Running Claude Code under several accounts — `~/.claude`,
 `~/.claude-account1`, `~/.claude-account2`, … via `$CLAUDE_CONFIG_DIR` or a
@@ -97,6 +107,21 @@ pet plugin install claude --path ~/.claude-account2
 
 Each gets its own hooks, skills and `statusLine` entry, and each shows up as
 its own ring the moment that account's Claude Code reports rate limits.
+
+**Codex** has no equivalent to `statusLine` — its only external hook
+(`notify`) carries turn metadata, never usage, and the 5-hour/weekly
+percentages its own `/statusline` shows exist only inside its interactive
+TUI. There is nothing for it to push to `pet`, so nothing is installed into
+Codex's config for this at all: `pet` instead polls Codex's own session
+files every 30 seconds — `~/.codex/sessions/**/rollout-*.jsonl` and any
+sibling `~/.codex-*` folder, mirroring how multiple Claude accounts are
+named — reading only the tail of the most recently modified file for the
+latest `rate_limits` reading Codex already records for itself. This is
+read-only and unofficial: Codex ships no documented format for its rollout
+files, so a future Codex release changing that internal shape can silently
+stop this working, unlike Claude's supported `statusLine` contract.
+Uninstalling a Codex account (`pet plugin uninstall codex --path <dir>`)
+still clears its recorded reading, the same as Claude's.
 
 A per-model weekly figure (Fable's own week, say) is not included: Anthropic
 does not expose it anywhere outside `/usage`'s own interactive display, so

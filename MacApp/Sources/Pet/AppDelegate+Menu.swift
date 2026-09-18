@@ -177,7 +177,7 @@ extension AppDelegate {
         behaviorMenu.addItem(chimeItem)
 
         usageItem = NSMenuItem(
-            title: "Show Claude Usage Below Pet",
+            title: "Show Usage Below Pet",
             action: #selector(toggleUsageBadge), keyEquivalent: "")
         usageItem.target = self
         usageItem.state = usageEnabled ? .on : .off
@@ -276,7 +276,7 @@ extension AppDelegate {
             ("Antics When Bored", #selector(toggleAntics), anticsEnabled, "figure.wave"),
             ("Show Activity Bubbles", #selector(toggleBubbles), bubblesEnabled, "bubble.left"),
             (
-                "Show Claude Usage Below Pet", #selector(toggleUsageBadge), usageEnabled,
+                "Show Usage Below Pet", #selector(toggleUsageBadge), usageEnabled,
                 "gauge.with.dots.needle.50percent"
             ),
         ]
