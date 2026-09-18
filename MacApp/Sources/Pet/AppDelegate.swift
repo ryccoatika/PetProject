@@ -204,6 +204,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(reloadFromPreferences),
             name: Notification.Name(Prefs.reloadNotification), object: nil)
+        // A Space switch can leave an all-Spaces borderless window out of
+        // the new Space's window list, and isVisible stays true so no tick
+        // notices. Re-asserting on arrival brings the pet and its bubbles.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(activeSpaceChanged),
+            name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         writeRuntime()
 
         Log.info(
