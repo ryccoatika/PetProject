@@ -208,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         view.dragEnd = { [weak self] in self?.endDrag() }
         view.doubleClick = { [weak self] in self?.toggleChase() }
         view.rightClick = { [weak self] event in self?.showBehaviorContextMenu(with: event) }
+        view.tripleClick = { [weak self] in self?.toggleUsageBadge() }
         place()
 
         trayHidden = Prefs.store.bool(forKey: "petTrayHidden")

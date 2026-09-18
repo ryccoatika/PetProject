@@ -26,6 +26,10 @@ final class PetView: NSView {
     var dragEnd: (() -> Void)?
     var doubleClick: (() -> Void)?
     var rightClick: ((NSEvent) -> Void)?  // pops the Behaviour menu
+    /// A middle-click — what a three-finger trackpad tap arrives as once the
+    /// system or a trackpad utility maps it to a click, rather than its
+    /// default Look Up gesture.
+    var tripleClick: (() -> Void)?
     private var grabOffset = CGSize.zero
     private var dragActive = false
 
@@ -62,6 +66,9 @@ final class PetView: NSView {
         dragEnd?()
     }
     override func rightMouseDown(with e: NSEvent) { rightClick?(e) }
+    override func otherMouseDown(with e: NSEvent) {
+        if e.buttonNumber == 2 { tripleClick?() }
+    }
 
     override var isFlipped: Bool { false }
 

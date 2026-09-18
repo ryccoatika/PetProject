@@ -197,7 +197,8 @@ extension AppDelegate {
         behaviorMenu.addItem(.separator())
         let hint = NSMenuItem(
             title:
-                "Drag to move · double-click to chase · flick to throw · right-click for toggles",
+                "Drag to move · double-click to chase · flick to throw · "
+                + "right-click for toggles · middle-click for usage",
             action: nil, keyEquivalent: "")
         hint.isEnabled = false
         behaviorMenu.addItem(hint)

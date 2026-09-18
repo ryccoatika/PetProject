@@ -39,8 +39,9 @@ Unreleased, and merging into `main`.
   once never both just say "default"). Running several accounts of either
   agent at once shows one ring pair per account, up to 6, side by side.
   `pet usage` prints every account with no cap; `pet usage show | hide`, the
-  menu's **Show Usage Below Pet**, or the pet's right-click menu toggles the
-  badge.
+  menu's **Show Usage Below Pet**, the pet's right-click menu, or a
+  **middle-click** on the pet (a three-finger trackpad tap, once mapped to a
+  click) toggles the badge.
 
   Hooks never receive Claude's rate-limit numbers, so the Claude Code plugin
   also points each config's `statusLine` at `pet statusline` — installed
