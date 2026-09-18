@@ -34,7 +34,8 @@ Unreleased, and merging into `main`.
 - **A Claude usage badge** below the pet: a ring pair per Claude account —
   outer for the 7-day week limit across every model, inner for the rolling
   5-hour session limit, the same numbers `/usage` shows, with the more
-  urgent one in the centre. Hooks never receive these, so the Claude Code
+  urgent one in the centre and no caption drawn under it — hover a ring to
+  see which account it is. Hooks never receive these, so the Claude Code
   plugin now also points each config's `statusLine` at `pet statusline`,
   which records them and, if a custom statusline was already configured,
   chains to it so nothing breaks. Each account's readings are keyed by its

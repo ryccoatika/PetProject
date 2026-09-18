@@ -107,7 +107,8 @@ With the Claude Code plugin installed, a small badge below the pet shows the
 two numbers `/usage` does — the rolling 5-hour session limit and the 7-day
 week limit across every Claude model — as a pair of concentric rings: outer
 for the week, inner for the session, the more urgent of the two as the
-number in the middle. Running several Claude accounts at once
+number in the middle — no caption under the ring by default, so **hover a
+ring to see which account it is**. Running several Claude accounts at once
 (`~/.claude`, `~/.claude-account1`, …) shows one ring pair per account,
 side by side, up to 6; `pet usage` prints every account with no cap.
 `pet usage show | hide` (or **Show Claude Usage Below Pet** in the menu or

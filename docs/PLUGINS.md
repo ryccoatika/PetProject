@@ -74,8 +74,12 @@ never has one overwrite another. The app polls that folder and draws one
 small ring pair per account below the pet — outer ring the week, inner ring
 the session, centre number the more urgent of the two — capped at 6 accounts
 so the badge cannot grow absurdly wide; `pet usage` has no such cap and
-prints every account. **Show Claude Usage Below Pet** (menu, or the pet's
-right-click menu) toggles the badge.
+prints every account. No caption is drawn under a ring; hovering it shows
+that account's name as a tooltip, so the badge stays as small as the rings
+alone need — the ring is the only part of that window that is not
+click-through, the same trick the activity bubbles use for their cards.
+**Show Claude Usage Below Pet** (menu, or the pet's right-click menu)
+toggles the badge.
 
 Running Claude Code under several accounts — `~/.claude`,
 `~/.claude-account1`, `~/.claude-account2`, … via `$CLAUDE_CONFIG_DIR` or a

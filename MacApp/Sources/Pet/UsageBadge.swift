@@ -4,22 +4,29 @@
 //  A small card below the pet with Claude's own rate-limit numbers — the
 //  same two figures /usage shows, per account. Circular rather than a bar
 //  per account so several accounts (~/.claude, ~/.claude-account1, …) fit
-//  side by side without the card growing tall. Persistent while data is
-//  fresh, unlike the activity bubbles above the pet, which come and go with
-//  what is happening.
+//  side by side without the card growing tall. No caption under each ring
+//  by default — hovering one shows its account name as a tooltip, so the
+//  badge stays as compact as the numbers alone need. Persistent while data
+//  is fresh, unlike the activity bubbles above the pet, which come and go
+//  with what is happening.
 
 import Cocoa
 
 final class UsageBadgeView: NSView {
-    var snapshots: [UsageStore.Snapshot] = [] { didSet { needsDisplay = true } }
+    var snapshots: [UsageStore.Snapshot] = [] {
+        didSet {
+            needsDisplay = true
+            layoutToolTips()
+        }
+    }
 
     static let diameter: CGFloat = 40
     static let ringWidth: CGFloat = 4
     static let ringGap: CGFloat = 2
     static let spacing: CGFloat = 14
     static let sidePadding: CGFloat = 10
-    static let labelHeight: CGFloat = 13
-    static let height: CGFloat = diameter + labelHeight + 10
+    static let verticalPadding: CGFloat = 8
+    static let height: CGFloat = diameter + verticalPadding * 2
     /// Never lets the card grow absurdly wide; more accounts than this are
     /// simply not shown (`pet usage` on the command line has no such limit).
     static let maxAccounts = 6
@@ -30,7 +37,6 @@ final class UsageBadgeView: NSView {
     }
 
     static let centerFont = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
-    static let labelFont = NSFont.systemFont(ofSize: 8.5, weight: .regular)
 
     override func draw(_ dirtyRect: NSRect) {
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 12, yRadius: 12)
@@ -41,7 +47,7 @@ final class UsageBadgeView: NSView {
         card.stroke()
 
         let d = Self.diameter
-        let cy = Self.labelHeight + 5 + d / 2
+        let cy = bounds.midY
         for (i, snap) in snapshots.prefix(Self.maxAccounts).enumerated() {
             let cx = Self.sidePadding + d / 2 + CGFloat(i) * (d + Self.spacing)
             drawAccount(snap, center: NSPoint(x: cx, y: cy))
@@ -65,19 +71,37 @@ final class UsageBadgeView: NSView {
                 at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
                 withAttributes: attrs)
         }
+    }
 
-        let label = snap.label
-        let labelAttrs: [NSAttributedString.Key: Any] = [
-            .font: Self.labelFont, .foregroundColor: NSColor.secondaryLabelColor,
-        ]
-        let labelSize = (label as NSString).size(withAttributes: labelAttrs)
-        let maxWidth = Self.diameter + Self.spacing - 4
-        let truncated =
-            labelSize.width > maxWidth
-            ? String(label.prefix(6)) + "…" : label
-        let finalSize = (truncated as NSString).size(withAttributes: labelAttrs)
-        (truncated as NSString).draw(
-            at: CGPoint(x: center.x - finalSize.width / 2, y: 2), withAttributes: labelAttrs)
+    /// Each account's slot both accepts the hover for its tooltip and, via
+    /// `hitTest`, is the only part of this window that does not pass clicks
+    /// through to whatever is underneath — the same trick the activity
+    /// bubbles use for their cards.
+    private var slots: [NSRect] = []
+    private var slotSignature = ""
+
+    /// Rebuilt only when the account lineup itself changes — percentages
+    /// tick every half second, but the tooltip regions do not need to.
+    private func layoutToolTips() {
+        let labels = snapshots.prefix(Self.maxAccounts).map(\.label)
+        let signature = labels.joined(separator: "|")
+        guard signature != slotSignature else { return }
+        slotSignature = signature
+
+        removeAllToolTips()
+        slots.removeAll()
+        let d = Self.diameter
+        for (i, label) in labels.enumerated() {
+            let x = Self.sidePadding + CGFloat(i) * (d + Self.spacing)
+            let rect = NSRect(x: x, y: 0, width: d, height: Self.height)
+            slots.append(rect)
+            addToolTip(rect, owner: label, userData: nil)
+        }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        return slots.contains { $0.contains(local) } ? self : nil
     }
 
     /// One ring: a full track, then a progress arc clockwise from 12
@@ -168,7 +192,9 @@ extension AppDelegate {
         window.backgroundColor = .clear
         window.hasShadow = true
         window.level = .statusBar
-        window.ignoresMouseEvents = true  // a readout, nothing to click
+        // clicks and hover land on a ring and pass through everywhere else
+        // (hitTest) — hovering shows that account's name as a tooltip
+        window.ignoresMouseEvents = false
         window.collectionBehavior = [
             .canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle,
         ]
