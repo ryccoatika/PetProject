@@ -176,6 +176,14 @@ extension AppDelegate {
         chimeItem.image = menuSymbol("bell")
         behaviorMenu.addItem(chimeItem)
 
+        usageItem = NSMenuItem(
+            title: "Show Claude Usage Below Pet",
+            action: #selector(toggleUsageBadge), keyEquivalent: "")
+        usageItem.target = self
+        usageItem.state = usageEnabled ? .on : .off
+        usageItem.image = menuSymbol("gauge.with.dots.needle.50percent")
+        behaviorMenu.addItem(usageItem)
+
         behaviorMenu.addItem(.separator())
 
         let followItem = NSMenuItem(title: "Follow Session", action: nil, keyEquivalent: "")
@@ -267,6 +275,10 @@ extension AppDelegate {
             ),
             ("Antics When Bored", #selector(toggleAntics), anticsEnabled, "figure.wave"),
             ("Show Activity Bubbles", #selector(toggleBubbles), bubblesEnabled, "bubble.left"),
+            (
+                "Show Claude Usage Below Pet", #selector(toggleUsageBadge), usageEnabled,
+                "gauge.with.dots.needle.50percent"
+            ),
         ]
         for (title, action, on, symbol) in toggles {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -285,6 +297,7 @@ extension AppDelegate {
         anticsItem?.state = anticsEnabled ? .on : .off
         bubbleItem?.state = bubblesEnabled ? .on : .off
         chimeItem?.state = chimeEnabled ? .on : .off
+        usageItem?.state = usageEnabled ? .on : .off
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {

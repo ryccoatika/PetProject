@@ -59,6 +59,30 @@ reach for them from a plain request; elsewhere they are command files.
 Antigravity and pi have no equivalent, so they get hooks only. Only files at
 exactly these paths are ever written or removed.
 
+## Claude usage badge
+
+Claude Code installs one more thing: its own `statusLine` entry. That is the
+only place Anthropic exposes rate-limit numbers — hooks never receive them —
+so `pet plugin install claude` also points `statusLine.command` at
+`pet statusline --claude-dir <dir>`. That command reads the JSON Claude Code
+sends it, writes the two numbers `/usage` shows (the rolling 5-hour "session"
+window and the 7-day "week, all models" window) to
+`<configDir>/usage`, and the app polls that file to draw a small badge below
+the pet — `pet usage` prints the same numbers, and **Show Claude Usage Below
+Pet** (menu, or the pet's right-click menu) toggles it.
+
+A per-model weekly figure (Fable's own week, say) is not included: Anthropic
+does not expose it anywhere outside `/usage`'s own interactive display, so
+there is nothing to read.
+
+`statusLine` holds exactly one command, unlike hooks. If a custom statusline
+was already configured, install saves it (next to that `settings.json`, as
+`.pet-statusline-previous.json`) and `pet statusline` runs it first, appending
+the usage line to its output; uninstall reads the same file to put the
+original command back — untouched if it is not recognisable as ours to begin
+with. Badge and usage data only appear for Pro and Max plans, and only after
+a session's first response.
+
 ## What it registers
 
 Five of the seven take JSON config listing commands to run. Claude Code,

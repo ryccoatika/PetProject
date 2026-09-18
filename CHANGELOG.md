@@ -31,6 +31,15 @@ Unreleased, and merging into `main`.
   and Cursor get command files. On Codex, create-sprite rides the built-in
   **hatch-pet** skill (and its $imagegen system skill), then installs the
   hatched pet straight into the app.
+- **A Claude usage badge** below the pet: the rolling 5-hour session limit
+  and the 7-day week limit across every Claude model, the same numbers
+  `/usage` shows — hooks never receive them, so the Claude Code plugin now
+  also points `statusLine` at `pet statusline`, which records them and, if a
+  custom statusline was already configured, chains to it so nothing breaks.
+  `pet usage` prints the numbers; `pet usage show | hide`, the menu's **Show
+  Claude Usage Below Pet**, or the pet's right-click menu toggles the badge.
+  Needs a Pro or Max plan. A per-model weekly figure is not included —
+  Anthropic does not expose one outside `/usage`'s own display.
 
 ### Changed
 

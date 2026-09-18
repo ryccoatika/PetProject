@@ -13,6 +13,7 @@ link too, pointing it at the copy in `~/Applications`.
     pet tray show | hide    the menu bar icon
     pet bubbles show | hide the activity bubbles above the pet
     pet antics on | off     wander, wave or sulk when bored (on by default)
+    pet usage [show | hide] Claude's session/week rate-limit badge, or its numbers
     pet stats               today's sessions, tools and active time
     pet skins               list skins, current one marked
     pet skin <id>           switch skin
@@ -99,6 +100,17 @@ A few things follow from having every session in view:
   whichever agent wrote last.
 - `pet stats` (and a line in About) tallies today's sessions, tools run and
   active time.
+
+## Claude usage badge
+
+With the Claude Code plugin installed, a small badge below the pet shows the
+two numbers `/usage` does: the rolling 5-hour session limit and the 7-day
+week limit across every Claude model — both as a bar, a percentage and a
+reset countdown. `pet usage` prints the same numbers on the command line;
+`pet usage show | hide` (or **Show Claude Usage Below Pet** in the menu or
+the pet's right-click menu) toggles the badge. Needs a Pro or Max plan, and
+only appears after a session's first response — see [Agent
+plugins](PLUGINS.md#claude-usage-badge) for how it gets the data.
 
 `pet event <name>` is what writes that line: agent hooks call the CLI
 directly, so there is no generated shell script anywhere. With `--allow` it

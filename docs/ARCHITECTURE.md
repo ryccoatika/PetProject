@@ -112,6 +112,18 @@ Two rules keep this safe to run against a file full of somebody else's hooks:
 Every config file is copied to `*.bak-pet` before editing, and one that cannot
 be parsed is reported and left untouched.
 
+Claude Code carries one exception. Hooks never receive Anthropic's own
+rate-limit numbers — only the separate `statusLine` command does — so
+installing the Claude plugin also claims that slot: `statusLine.command`
+becomes `pet statusline --claude-dir <dir>`, which reads the JSON Claude Code
+sends it, writes the two numbers to `<configDir>/usage` for the app to poll,
+and prints its own line. Unlike hooks, `statusLine` holds exactly one
+command, so a pre-existing one is saved next to `settings.json`
+(`.pet-statusline-previous.json`) and `pet statusline` runs it first,
+appending the usage line to whatever it printed; uninstalling reads the same
+file to hand the slot back. The same ownership and reconcile rules apply —
+a `statusLine` we do not recognise as ours is never touched, coming or going.
+
 ## Drawing
 
 `PetView` draws in a fixed design space — 170×165 for the drawn art, 210×240
@@ -173,12 +185,14 @@ MacApp/
                               at 512 KB, never written from the loop
     Skin, SkinStore           drawn skins: the format, finding and seeding them
     SpritePet, SpriteStore, SpriteInstaller    codex-pets packs
-    HookHost, HookPlugin, OpencodePlugin       agent integration
+    HookHost, HookPlugin, OpencodePlugin, AgentCommands   agent integration
+    UsageStore, UsageBadge   Claude's rate-limit numbers, via `pet statusline`
+    ActivityBubbles          per-session cards above the pet
     PetView, PetView+Art      view state and dragging / how each pose is drawn
     Renderers                 icon, disk image background, contact sheets
     AppDelegate               lifecycle, window, shared state
-      +Menu +Art +Plugins +Tools +Loop
-    CLI +App +Skins +Plugin   the command line tool
+      +Menu +Art +Plugins +Tools +Loop +Updates +About
+    CLI +App +Skins +Plugin +Usage   the command line tool
   Skins/                      the four shipped skins, compiled in at build time
   build.sh                    compile, bundle, install locally
   dmg.sh                      build the disk image to share

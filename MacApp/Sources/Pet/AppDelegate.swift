@@ -70,6 +70,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var bubbleView: BubbleView?
     var bubblesEnabled = true
     var bubbleSignature = ""
+    /// Claude's own session/week rate-limit badge, below the pet.
+    var usageEnabled = true
+    var usageWindow: NSWindow?
+    var usageView: UsageBadgeView?
     var bubbleItem: NSMenuItem!
     var sinceBubbleRead: Double = 0
     /// Live sessions, re-read on a slow tick and shared by the bubbles, the
@@ -79,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Chime when a session starts waiting for you. Off by default.
     var chimeEnabled = false
     var chimeItem: NSMenuItem!
+    var usageItem: NSMenuItem!
     let chimeSoundName = "Submarine"  // a built-in macOS alert sound
     var lastWaitingSessions: Set<String> = []
     var bubbleWindowSeenOnce = false
@@ -163,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let d = Prefs.store
         chaseWhenIdle = d.bool(forKey: "petChase")
         bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
+        usageEnabled = !d.bool(forKey: "petUsageHidden")
         chimeEnabled = d.bool(forKey: "petChime")
         anticsEnabled = !d.bool(forKey: "petAnticsOff")
         pinnedSession = d.string(forKey: "petFollowSession") ?? ""

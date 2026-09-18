@@ -60,6 +60,8 @@ extension AppDelegate {
         if !anticsEnabled { endIdleAct() }
         bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
         if !bubblesEnabled { hideBubbles() }
+        usageEnabled = !d.bool(forKey: "petUsageHidden")
+        if !usageEnabled { hideUsageBadge() }
         // a missing key means the default size, which is how `pet size reset`
         // clears it — reading it as "no change" would ignore the reset
         let savedScale = CGFloat((d.object(forKey: "petScale") as? Double) ?? 1)
@@ -247,6 +249,7 @@ extension AppDelegate {
         placedAt = pos
         window.setFrameOrigin(NSPoint(x: pos.x - size.width / 2, y: pos.y))
         placeBubbles()  // the stack rides along
+        placeUsageBadge()
     }
 
     // MARK: state file
@@ -445,6 +448,7 @@ extension AppDelegate {
             updatePose()
             isActive = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
             hideBubbles()
+            hideUsageBadge()
             setLoopRate(desiredLoopRate())
             return
         }
@@ -496,6 +500,7 @@ extension AppDelegate {
             sinceBubbleRead = 0
             liveSessions = SessionStore.read()
             updateBubbles()
+            updateUsageBadge()
         }
         driveFromSession()
         updatePose()

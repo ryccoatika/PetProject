@@ -304,6 +304,138 @@ enum HookPlugin {
             }
         }
         applyCommands(host, remove: remove)
+        if host.id == "claude" {
+            for dir in claudeSettingsDirs(host) {
+                mergeStatusLine(claudeDir: dir, remove: remove)
+            }
+        }
+    }
+
+    /// The folders holding a settings.json we just touched, so the status
+    /// line install lands beside the same file(s) — including every
+    /// `--path` the hooks were just registered into.
+    private static func claudeSettingsDirs(_ host: HookHost) -> [URL] {
+        guard case .json(let files, _, _, _, _) = host.kind else { return [] }
+        return files.map { $0.deletingLastPathComponent() }
+    }
+
+    // MARK: status line
+
+    /// Our own claim on the statusLine slot: same strict-ownership rule as a
+    /// hook — the executable must be the pet, and its first argument must be
+    /// `statusline`. A user's own script never accidentally looks like ours.
+    static func isOurStatusLineCommand(_ command: String) -> Bool {
+        let text = command.trimmingCharacters(in: .whitespaces)
+        let executable: String
+        if text.hasPrefix("\"") {
+            let body = text.dropFirst()
+            guard let end = body.firstIndex(of: "\"") else { return false }
+            executable = String(body[body.startIndex..<end])
+        } else {
+            executable = String(text.split(separator: " ").first ?? "")
+        }
+        let name = URL(fileURLWithPath: executable).lastPathComponent
+        guard name == "pet" || name == "Pet" else { return false }
+        let arguments = text.dropFirst(
+            text.hasPrefix("\"") ? executable.count + 2 : executable.count)
+        return arguments.trimmingCharacters(in: .whitespaces).hasPrefix("statusline")
+    }
+
+    static func statusLineCommand(claudeDir: URL) -> String {
+        let path = CLI.installedCommandPath
+        let quoted = path.contains(" ") ? "\"\(path)\"" : path
+        let dirArg = claudeDir.path.contains(" ") ? "\"\(claudeDir.path)\"" : claudeDir.path
+        return "\(quoted) statusline --claude-dir \(dirArg)"
+    }
+
+    private static func previousStatusLineMarker(_ claudeDir: URL) -> URL {
+        claudeDir.appendingPathComponent(".pet-statusline-previous.json")
+    }
+
+    /// What `pet statusline` chains to, when we are wrapping somebody else's
+    /// statusline rather than being the only one.
+    static func previousStatusLineCommand(claudeDir: URL) -> String? {
+        guard let data = try? Data(contentsOf: previousStatusLineMarker(claudeDir)),
+            let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let command = saved["command"] as? String
+        else { return nil }
+        return command
+    }
+
+    /// Installs `pet statusline` into settings.json's single `statusLine`
+    /// slot, remembering whatever was there so uninstall can give it back.
+    /// Never touches a slot that already holds something we do not
+    /// recognise as ours on the way out — only ever our own entry is
+    /// replaced or restored.
+    static func mergeStatusLine(claudeDir: URL, remove: Bool) {
+        let settingsFile = claudeDir.appendingPathComponent("settings.json")
+        let marker = previousStatusLineMarker(claudeDir)
+        let label = CLI.tilde(settingsFile.deletingLastPathComponent())
+
+        var root: [String: Any] = [:]
+        if let data = try? Data(contentsOf: settingsFile), !data.isEmpty {
+            guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else {
+                print("  !  \(label) — settings.json unreadable, status line left untouched")
+                return
+            }
+            root = parsed
+        } else if remove {
+            return  // nothing to remove
+        }
+
+        let existing = root["statusLine"] as? [String: Any]
+        let oursNow =
+            existing.map { isOurStatusLineCommand($0["command"] as? String ?? "") }
+            ?? false
+
+        if remove {
+            guard oursNow else { return }  // never ours; leave whatever is there alone
+            if let data = try? Data(contentsOf: marker),
+                let previous = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            {
+                root["statusLine"] = previous
+                print("  ✓  \(label) — status line restored")
+            } else {
+                root.removeValue(forKey: "statusLine")
+                print("  ✓  \(label) — status line removed")
+            }
+            try? FileManager.default.removeItem(at: marker)
+            writeSettings(root, to: settingsFile)
+            return
+        }
+
+        guard !oursNow else { return }  // already installed
+        if let existing {
+            // somebody else's statusline: remember it so uninstall gives it back
+            if let data = try? JSONSerialization.data(withJSONObject: existing) {
+                try? data.write(to: marker)
+            }
+        } else {
+            try? FileManager.default.removeItem(at: marker)  // nothing to chain to
+        }
+        root["statusLine"] = [
+            "type": "command", "command": statusLineCommand(claudeDir: claudeDir),
+        ]
+        writeSettings(root, to: settingsFile)
+        print("  ✓  \(label) — status line installed (Claude's session/week usage)")
+    }
+
+    private static func writeSettings(_ root: [String: Any], to url: URL) {
+        if FileManager.default.fileExists(atPath: url.path) {
+            let backup = url.appendingPathExtension("bak-pet")
+            try? FileManager.default.removeItem(at: backup)
+            try? FileManager.default.copyItem(at: url, to: backup)
+        } else {
+            try? FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        }
+        guard
+            let out = try? JSONSerialization.data(
+                withJSONObject: root,
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        else { return }
+        try? out.write(to: url)
     }
 
     /// The create-pet and create-sprite files — skills for Claude Code and

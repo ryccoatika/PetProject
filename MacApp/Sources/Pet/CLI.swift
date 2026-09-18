@@ -261,6 +261,7 @@ enum CLI {
               tray show | tray hide  show or hide the menu bar icon
               bubbles show | hide    the activity bubbles above the pet
               antics on | off        wander, wave or sulk when bored
+              usage [show | hide]    Claude's session/week rate-limit badge
               stats                  today's sessions, tools and active time
               size [50…200 | reset]  how big the pet is drawn
 
@@ -312,6 +313,8 @@ enum CLI {
         case "tray": tray(args.first)
         case "bubbles": bubbles(args.first)
         case "antics": antics(args.first)
+        case "usage": usage(args.first)
+        case "statusline": statusline(args)
         case "stats": stats()
         case "size": size(args.first)
         case "skins": args.first == "dir" ? print(SkinStore.userDir.path) : listSkins()
