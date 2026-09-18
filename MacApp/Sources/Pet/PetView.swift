@@ -26,12 +26,25 @@ final class PetView: NSView {
     var dragEnd: (() -> Void)?
     var doubleClick: (() -> Void)?
     var rightClick: ((NSEvent) -> Void)?  // pops the Behaviour menu
-    /// A middle-click — what a three-finger trackpad tap arrives as once the
-    /// system or a trackpad utility maps it to a click, rather than its
-    /// default Look Up gesture.
+    /// A three-finger trackpad tap, or a physical middle-click.
     var tripleClick: (() -> Void)?
     private var grabOffset = CGSize.zero
     private var dragActive = false
+    /// The most fingers seen at once during the touch in progress, and when
+    /// it started — a plain three-finger tap has no click of its own to
+    /// hook, so it is detected from the raw trackpad touches directly rather
+    /// than relying on the system or a utility mapping it to a click first.
+    private var touchPeakCount = 0
+    private var touchGestureStart: Date?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        allowedTouchTypes = [.indirect]  // trackpad, not a touchscreen
+    }
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        allowedTouchTypes = [.indirect]
+    }
 
     /// Region the pet actually occupies. Clicks outside it pass through to
     /// whatever is underneath, so the window only "exists" where the cat is.
@@ -66,8 +79,33 @@ final class PetView: NSView {
         dragEnd?()
     }
     override func rightMouseDown(with e: NSEvent) { rightClick?(e) }
+    // a real middle-click still works, for a mouse or a utility that maps
+    // a trackpad gesture to one
     override func otherMouseDown(with e: NSEvent) {
         if e.buttonNumber == 2 { tripleClick?() }
+    }
+
+    // A plain three-finger tap: touches begin, none are held down long or
+    // dragged into a swipe, all lift together. No accompanying mouse event
+    // exists for this — the trackpad reports raw finger contact instead.
+    override func touchesBegan(with event: NSEvent) {
+        let count = event.touches(matching: .touching, in: self).count
+        touchPeakCount = max(touchPeakCount, count)
+        if touchGestureStart == nil { touchGestureStart = Date() }
+    }
+    override func touchesEnded(with event: NSEvent) {
+        guard event.touches(matching: .touching, in: self).isEmpty else { return }
+        if touchPeakCount >= 3, let start = touchGestureStart,
+            Date().timeIntervalSince(start) < 0.5
+        {
+            tripleClick?()
+        }
+        touchPeakCount = 0
+        touchGestureStart = nil
+    }
+    override func touchesCancelled(with event: NSEvent) {
+        touchPeakCount = 0
+        touchGestureStart = nil
     }
 
     override var isFlipped: Bool { false }
