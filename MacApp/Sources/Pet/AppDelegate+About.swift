@@ -71,10 +71,11 @@ extension AppDelegate {
         // width balances it so the button itself stays centre-aligned with
         // the other buttons in the list.
         let balance = NSView()
-        balance.widthAnchor.constraint(equalTo: spinner.widthAnchor).isActive = true
         let checkRow = NSStackView(views: [balance, check, spinner])
         checkRow.orientation = .horizontal
         checkRow.spacing = 6
+        // only after the row owns both views — anchors need a common ancestor
+        balance.widthAnchor.constraint(equalTo: spinner.widthAnchor).isActive = true
 
         var rows: [NSView] = [
             checkRow,
