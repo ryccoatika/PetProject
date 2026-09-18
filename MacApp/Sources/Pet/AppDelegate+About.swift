@@ -67,8 +67,12 @@ extension AppDelegate {
         spinner.isDisplayedWhenStopped = false
         aboutSpinner = spinner
 
-        // the spinner sits beside the update button, outside the list width
-        let checkRow = NSStackView(views: [check, spinner])
+        // The spinner sits beside the update button; a spacer of the same
+        // width balances it so the button itself stays centre-aligned with
+        // the other buttons in the list.
+        let balance = NSView()
+        balance.widthAnchor.constraint(equalTo: spinner.widthAnchor).isActive = true
+        let checkRow = NSStackView(views: [balance, check, spinner])
         checkRow.orientation = .horizontal
         checkRow.spacing = 6
 
