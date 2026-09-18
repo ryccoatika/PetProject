@@ -97,6 +97,12 @@ extension AppDelegate {
         about.image = menuSymbol("info.circle")
         mainMenu.addItem(about)
 
+        let restart = NSMenuItem(
+            title: "Restart Pet", action: #selector(restart), keyEquivalent: "r")
+        restart.target = self
+        restart.image = menuSymbol("arrow.clockwise")
+        mainMenu.addItem(restart)
+
         let quit = NSMenuItem(title: "Quit Pet", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         mainMenu.addItem(quit)

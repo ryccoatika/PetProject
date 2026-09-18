@@ -238,8 +238,9 @@ extension AppDelegate {
         }
     }
 
-    /// Hand over to the new copy: open it after this process has gone.
-    private func relaunch() {
+    /// Start this bundle again once this process has gone — the tail end of
+    /// an update, and the menu's Restart Pet.
+    func relaunch() {
         let path = Bundle.main.bundleURL.path
         let handoff = Process()
         handoff.executableURL = URL(fileURLWithPath: "/bin/sh")
