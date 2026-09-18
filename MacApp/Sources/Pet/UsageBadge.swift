@@ -2,68 +2,107 @@
 //  Desktop Pet
 //
 //  A small card below the pet with Claude's own rate-limit numbers — the
-//  same two bars /usage shows. Persistent while data is fresh, unlike the
-//  activity bubbles above the pet, which come and go with what is happening.
+//  same two figures /usage shows, per account. Circular rather than a bar
+//  per account so several accounts (~/.claude, ~/.claude-account1, …) fit
+//  side by side without the card growing tall. Persistent while data is
+//  fresh, unlike the activity bubbles above the pet, which come and go with
+//  what is happening.
 
 import Cocoa
 
 final class UsageBadgeView: NSView {
-    var snapshot: UsageStore.Snapshot? { didSet { needsDisplay = true } }
+    var snapshots: [UsageStore.Snapshot] = [] { didSet { needsDisplay = true } }
 
-    static let width: CGFloat = 210
-    static let height: CGFloat = 38
-    static let font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
-    static let trailingFont = NSFont.systemFont(ofSize: 10, weight: .regular)
+    static let diameter: CGFloat = 40
+    static let ringWidth: CGFloat = 4
+    static let ringGap: CGFloat = 2
+    static let spacing: CGFloat = 14
+    static let sidePadding: CGFloat = 10
+    static let labelHeight: CGFloat = 13
+    static let height: CGFloat = diameter + labelHeight + 10
+    /// Never lets the card grow absurdly wide; more accounts than this are
+    /// simply not shown (`pet usage` on the command line has no such limit).
+    static let maxAccounts = 6
+
+    static func width(for count: Int) -> CGFloat {
+        let n = CGFloat(min(count, maxAccounts))
+        return n * diameter + max(0, n - 1) * spacing + sidePadding * 2
+    }
+
+    static let centerFont = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
+    static let labelFont = NSFont.systemFont(ofSize: 8.5, weight: .regular)
 
     override func draw(_ dirtyRect: NSRect) {
-        let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 9, yRadius: 9)
+        let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 12, yRadius: 12)
         NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill()
         card.fill()
         NSColor.separatorColor.setStroke()
         card.lineWidth = 0.5
         card.stroke()
 
-        guard let snapshot else { return }
-        row(
-            label: "Session", pct: snapshot.sessionPercent,
-            reset: UsageStore.humanReset(snapshot.sessionResetsAt), y: 20)
-        row(
-            label: "Week", pct: snapshot.weekPercent,
-            reset: UsageStore.humanReset(snapshot.weekResetsAt), y: 4)
+        let d = Self.diameter
+        let cy = Self.labelHeight + 5 + d / 2
+        for (i, snap) in snapshots.prefix(Self.maxAccounts).enumerated() {
+            let cx = Self.sidePadding + d / 2 + CGFloat(i) * (d + Self.spacing)
+            drawAccount(snap, center: NSPoint(x: cx, y: cy))
+        }
     }
 
-    /// One self-contained line: label, a short bar, then the percentage and
-    /// reset countdown — everything at one baseline, so two rows can never
-    /// collide regardless of font metrics.
-    private func row(label: String, pct: Double?, reset: String?, y: CGFloat) {
-        guard let pct else { return }
-        let barX: CGFloat = 58, barW: CGFloat = 74, barH: CGFloat = 6
-        let barY = y + 3
+    private func drawAccount(_ snap: UsageStore.Snapshot, center: NSPoint) {
+        let outerR = (Self.diameter - Self.ringWidth) / 2
+        let innerR = outerR - Self.ringWidth - Self.ringGap
 
-        (label as NSString).draw(
-            at: CGPoint(x: 10, y: y),
-            withAttributes: [.font: Self.font, .foregroundColor: NSColor.labelColor])
+        ring(pct: snap.weekPercent, center: center, radius: outerR)
+        ring(pct: snap.sessionPercent, center: center, radius: innerR)
 
-        let track = NSBezierPath(
-            roundedRect: NSRect(x: barX, y: barY, width: barW, height: barH), xRadius: 3,
-            yRadius: 3)
-        NSColor.separatorColor.withAlphaComponent(0.5).setFill()
-        track.fill()
-        let filled = max(0, min(1, pct / 100)) * barW
-        if filled > 1 {
-            let fill = NSBezierPath(
-                roundedRect: NSRect(x: barX, y: barY, width: filled, height: barH), xRadius: 3,
-                yRadius: 3)
-            barColor(for: pct).setFill()
-            fill.fill()
+        if let worst = snap.worstPercent {
+            let text = "\(Int(worst))"
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: Self.centerFont, .foregroundColor: barColor(for: worst),
+            ]
+            let size = (text as NSString).size(withAttributes: attrs)
+            (text as NSString).draw(
+                at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
+                withAttributes: attrs)
         }
 
-        let trailing = "\(Int(pct))%" + (reset.map { " · \($0)" } ?? "")
-        (trailing as NSString).draw(
-            at: CGPoint(x: barX + barW + 8, y: y),
-            withAttributes: [
-                .font: Self.trailingFont, .foregroundColor: NSColor.secondaryLabelColor,
-            ])
+        let label = snap.account
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: Self.labelFont, .foregroundColor: NSColor.secondaryLabelColor,
+        ]
+        let labelSize = (label as NSString).size(withAttributes: labelAttrs)
+        let maxWidth = Self.diameter + Self.spacing - 4
+        let truncated =
+            labelSize.width > maxWidth
+            ? String(label.prefix(6)) + "…" : label
+        let finalSize = (truncated as NSString).size(withAttributes: labelAttrs)
+        (truncated as NSString).draw(
+            at: CGPoint(x: center.x - finalSize.width / 2, y: 2), withAttributes: labelAttrs)
+    }
+
+    /// One ring: a full track, then a progress arc clockwise from 12
+    /// o'clock. `nil` draws nothing — an account with only one window
+    /// reporting still gets its one ring centred correctly.
+    private func ring(pct: Double?, center: NSPoint, radius: CGFloat) {
+        guard let pct else { return }
+        let track = NSBezierPath()
+        track.appendArc(
+            withCenter: center, radius: radius, startAngle: 0, endAngle: 360, clockwise: false)
+        NSColor.separatorColor.withAlphaComponent(0.5).setStroke()
+        track.lineWidth = Self.ringWidth
+        track.stroke()
+
+        let fraction = max(0, min(1, pct / 100))
+        guard fraction > 0.003 else { return }
+        let progress = NSBezierPath()
+        let start: CGFloat = 90
+        let end = start - 360 * CGFloat(fraction)
+        progress.appendArc(
+            withCenter: center, radius: radius, startAngle: start, endAngle: end, clockwise: true)
+        barColor(for: pct).setStroke()
+        progress.lineWidth = Self.ringWidth
+        progress.lineCapStyle = .round
+        progress.stroke()
     }
 
     /// Green well under budget, amber approaching the limit, red at it.
@@ -76,19 +115,24 @@ final class UsageBadgeView: NSView {
 
 extension AppDelegate {
 
-    /// Re-read the usage file and show or hide the badge below the pet.
-    /// Called on the same slow tick as the activity bubbles.
+    /// Re-read every account's usage file and show or hide the badge below
+    /// the pet. Called on the same slow tick as the activity bubbles.
     func updateUsageBadge() {
         guard usageEnabled, !hidden else {
             hideUsageBadge()
             return
         }
-        guard let snapshot = UsageStore.read(), snapshot.age < UsageStore.staleAfter else {
+        let fresh = UsageStore.readAll().filter { $0.age < UsageStore.staleAfter }
+        guard !fresh.isEmpty else {
             hideUsageBadge()
             return
         }
+        let width = UsageBadgeView.width(for: fresh.count)
         let window = usageWindow ?? makeUsageWindow()
-        usageView?.snapshot = snapshot
+        if window.frame.width != width {
+            window.setContentSize(NSSize(width: width, height: UsageBadgeView.height))
+        }
+        usageView?.snapshots = fresh
         placeUsageBadge()
         if !window.isVisible { window.orderFrontRegardless() }
     }
@@ -116,7 +160,8 @@ extension AppDelegate {
 
     private func makeUsageWindow() -> NSWindow {
         let view = UsageBadgeView(
-            frame: NSRect(x: 0, y: 0, width: UsageBadgeView.width, height: UsageBadgeView.height))
+            frame: NSRect(
+                x: 0, y: 0, width: UsageBadgeView.width(for: 1), height: UsageBadgeView.height))
         let window = NSWindow(
             contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.isOpaque = false

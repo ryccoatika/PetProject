@@ -116,8 +116,10 @@ Claude Code carries one exception. Hooks never receive Anthropic's own
 rate-limit numbers — only the separate `statusLine` command does — so
 installing the Claude plugin also claims that slot: `statusLine.command`
 becomes `pet statusline --claude-dir <dir>`, which reads the JSON Claude Code
-sends it, writes the two numbers to `<configDir>/usage` for the app to poll,
-and prints its own line. Unlike hooks, `statusLine` holds exactly one
+sends it, writes the two numbers to `<configDir>/usage/<account>` — one file
+per Claude account, so several running at once (`~/.claude`,
+`~/.claude-account1`, …) never clobber each other — for the app to poll, and
+prints its own line. Unlike hooks, each config's `statusLine` holds exactly one
 command, so a pre-existing one is saved next to `settings.json`
 (`.pet-statusline-previous.json`) and `pet statusline` runs it first,
 appending the usage line to whatever it printed; uninstalling reads the same

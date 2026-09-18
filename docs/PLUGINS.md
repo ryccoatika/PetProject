@@ -63,13 +63,32 @@ exactly these paths are ever written or removed.
 
 Claude Code installs one more thing: its own `statusLine` entry. That is the
 only place Anthropic exposes rate-limit numbers — hooks never receive them —
-so `pet plugin install claude` also points `statusLine.command` at
-`pet statusline --claude-dir <dir>`. That command reads the JSON Claude Code
-sends it, writes the two numbers `/usage` shows (the rolling 5-hour "session"
-window and the 7-day "week, all models" window) to
-`<configDir>/usage`, and the app polls that file to draw a small badge below
-the pet — `pet usage` prints the same numbers, and **Show Claude Usage Below
-Pet** (menu, or the pet's right-click menu) toggles it.
+so `pet plugin install claude --path <dir>` also points that config's
+`statusLine.command` at `pet statusline --claude-dir <dir>`. That command
+reads the JSON Claude Code sends it and writes the two numbers `/usage`
+shows (the rolling 5-hour "session" window and the 7-day "week, all models"
+window) to `<configDir>/usage/<account>` — one small file per Claude
+account, named after the config folder (`~/.claude` → `default`,
+`~/.claude-account1` → `account1`), so running several accounts at once
+never has one overwrite another. The app polls that folder and draws one
+small ring pair per account below the pet — outer ring the week, inner ring
+the session, centre number the more urgent of the two — capped at 6 accounts
+so the badge cannot grow absurdly wide; `pet usage` has no such cap and
+prints every account. **Show Claude Usage Below Pet** (menu, or the pet's
+right-click menu) toggles the badge.
+
+Running Claude Code under several accounts — `~/.claude`,
+`~/.claude-account1`, `~/.claude-account2`, … via `$CLAUDE_CONFIG_DIR` or a
+shell alias — install the plugin once per account with `--path`:
+
+```sh
+pet plugin install claude --path ~/.claude
+pet plugin install claude --path ~/.claude-account1
+pet plugin install claude --path ~/.claude-account2
+```
+
+Each gets its own hooks, skills and `statusLine` entry, and each shows up as
+its own ring the moment that account's Claude Code reports rate limits.
 
 A per-model weekly figure (Fable's own week, say) is not included: Anthropic
 does not expose it anywhere outside `/usage`'s own interactive display, so

@@ -3,27 +3,29 @@
 //
 //  `pet statusline` — installed into Claude Code's statusLine setting so the
 //  app can read the rate-limit numbers hooks never receive. `pet usage` is
-//  the human-facing readout of the same file.
+//  the human-facing readout of the same files.
 
 import Cocoa
 
 extension CLI {
 
     /// Called by Claude Code with the statusline JSON on stdin. Records the
-    /// rate-limit numbers, chains to whatever statusline was there before
-    /// (see HookPlugin.mergeStatusLine), and prints its output plus ours.
-    /// Always exits 0: a status line that fails just goes blank, never
-    /// blocks the UI.
+    /// rate-limit numbers under this account's own name, chains to whatever
+    /// statusline was there before (see HookPlugin.mergeStatusLine), and
+    /// prints its output plus ours. Always exits 0: a status line that fails
+    /// just goes blank, never blocks the UI.
     static func statusline(_ args: [String]) -> Never {
         let data = FileHandle.standardInput.readDataToEndOfFile()
         let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
-        if let rateLimits = json["rate_limits"] as? [String: Any] {
-            UsageStore.write(rateLimits: rateLimits)
-        }
 
         var claudeDir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".claude")
         if let i = args.firstIndex(of: "--claude-dir"), i + 1 < args.count {
             claudeDir = URL(fileURLWithPath: args[i + 1])
+        }
+
+        if let rateLimits = json["rate_limits"] as? [String: Any] {
+            UsageStore.write(
+                rateLimits: rateLimits, account: UsageStore.accountLabel(for: claudeDir))
         }
 
         if let previous = HookPlugin.previousStatusLineCommand(claudeDir: claudeDir) {
@@ -49,8 +51,8 @@ extension CLI {
         exit(0)
     }
 
-    /// `pet usage` — the numbers /usage shows, read from the file `pet
-    /// statusline` keeps updated.
+    /// `pet usage` — the numbers /usage shows, one line per Claude account
+    /// with a fresh reading.
     static func usage(_ action: String?) {
         Prefs.refresh()
         switch action {
@@ -60,20 +62,25 @@ extension CLI {
             Prefs.notifyRunningApp()
             print(action == "hide" ? "usage badge hidden" : "usage badge shown")
         case nil, "status":
-            guard let snap = UsageStore.read() else {
+            let snapshots = UsageStore.readAll()
+            guard !snapshots.isEmpty else {
                 print("no usage data yet — needs a Claude Code Pro or Max session")
                 return
             }
-            if snap.age > UsageStore.staleAfter {
-                print("last seen \(Int(snap.age / 60))m ago (stale):")
-            }
-            if let pct = snap.sessionPercent {
-                let reset = UsageStore.humanReset(snap.sessionResetsAt).map { " (resets in \($0))" }
-                print("session : \(Int(pct))%\(reset ?? "")")
-            }
-            if let pct = snap.weekPercent {
-                let reset = UsageStore.humanReset(snap.weekResetsAt).map { " (resets in \($0))" }
-                print("week    : \(Int(pct))% — all Claude models\(reset ?? "")")
+            for snap in snapshots {
+                var parts: [String] = []
+                if let pct = snap.sessionPercent {
+                    let reset = UsageStore.humanReset(snap.sessionResetsAt).map { " (\($0))" }
+                    parts.append("session \(Int(pct))%\(reset ?? "")")
+                }
+                if let pct = snap.weekPercent {
+                    let reset = UsageStore.humanReset(snap.weekResetsAt).map { " (\($0))" }
+                    parts.append("week \(Int(pct))%\(reset ?? "")")
+                }
+                let stale = snap.age > UsageStore.staleAfter ? " — stale" : ""
+                print(
+                    "\(snap.account.padding(toLength: 10, withPad: " ", startingAt: 0)) "
+                        + ": \(parts.joined(separator: " · "))\(stale)")
             }
         default:
             fail("usage: pet usage [show | hide]")

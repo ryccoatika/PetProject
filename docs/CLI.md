@@ -104,13 +104,17 @@ A few things follow from having every session in view:
 ## Claude usage badge
 
 With the Claude Code plugin installed, a small badge below the pet shows the
-two numbers `/usage` does: the rolling 5-hour session limit and the 7-day
-week limit across every Claude model — both as a bar, a percentage and a
-reset countdown. `pet usage` prints the same numbers on the command line;
+two numbers `/usage` does — the rolling 5-hour session limit and the 7-day
+week limit across every Claude model — as a pair of concentric rings: outer
+for the week, inner for the session, the more urgent of the two as the
+number in the middle. Running several Claude accounts at once
+(`~/.claude`, `~/.claude-account1`, …) shows one ring pair per account,
+side by side, up to 6; `pet usage` prints every account with no cap.
 `pet usage show | hide` (or **Show Claude Usage Below Pet** in the menu or
 the pet's right-click menu) toggles the badge. Needs a Pro or Max plan, and
 only appears after a session's first response — see [Agent
-plugins](PLUGINS.md#claude-usage-badge) for how it gets the data.
+plugins](PLUGINS.md#claude-usage-badge) for how it gets the data and how to
+wire up more than one account.
 
 `pet event <name>` is what writes that line: agent hooks call the CLI
 directly, so there is no generated shell script anywhere. With `--allow` it
