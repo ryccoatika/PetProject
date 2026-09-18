@@ -363,7 +363,8 @@ extension AppDelegate {
             idleAct = .running
             wanderTarget = randomWanderPoint()
             // long enough to cross the screen, then give up on a blocked walk
-            let dist = abs((wanderTarget?.x ?? pos.x) - pos.x)
+            let w = wanderTarget ?? pos
+            let dist = hypot(w.x - pos.x, w.y - pos.y)
             idleActUntil = Date().addingTimeInterval(Double(dist) / 280 + 4)
             view.pose = .sitting
         } else if roll < wanderShare + (grumpy ? 0.2 : 0.35) {
@@ -382,18 +383,21 @@ extension AppDelegate {
         wanderTarget = nil
     }
 
-    /// A stroll target anywhere along the current screen's floor, at least a
-    /// real walk away — never a two-pixel shuffle against an edge.
+    /// A stroll target anywhere on the current screen, at least a real walk
+    /// away — never a two-pixel shuffle against an edge.
     func randomWanderPoint() -> CGPoint {
         let screen =
             NSScreen.screens.first { $0.frame.contains(pos) } ?? NSScreen.main
             ?? NSScreen.screens[0]
         let f = screen.visibleFrame
+        let ceiling = max(f.minY + 4, f.maxY - size.height)
         for _ in 0..<4 {
-            let x = CGFloat.random(in: (f.minX + 60)...(f.maxX - 60))
-            if abs(x - pos.x) > 150 { return clampToScreen(CGPoint(x: x, y: pos.y)) }
+            let p = CGPoint(
+                x: CGFloat.random(in: (f.minX + 60)...(f.maxX - 60)),
+                y: CGFloat.random(in: (f.minY + 4)...ceiling))
+            if hypot(p.x - pos.x, p.y - pos.y) > 150 { return clampToScreen(p) }
         }
-        // a narrow screen or unlucky rolls: head for the far side
+        // a small screen or unlucky rolls: head for the far side
         let far = pos.x < f.midX ? f.maxX - 60 : f.minX + 60
         return clampToScreen(CGPoint(x: far, y: pos.y))
     }
