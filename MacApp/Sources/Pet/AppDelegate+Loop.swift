@@ -458,6 +458,7 @@ extension AppDelegate {
             lastMousePoint = mouseNow
             lastMouseMove = Date()
         }
+        updateUsageHover(screenPoint: mouseNow)
 
         // Per-pixel click-through: the window takes the mouse whenever the
         // cursor is over the cat itself, so it can always be grabbed or

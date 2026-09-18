@@ -5,19 +5,23 @@
 //  same two figures /usage shows, per account. Circular rather than a bar
 //  per account so several accounts (~/.claude, ~/.claude-account1, …) fit
 //  side by side without the card growing tall. No caption under each ring
-//  by default — hovering one shows its account name as a tooltip, so the
-//  badge stays as compact as the numbers alone need. Persistent while data
-//  is fresh, unlike the activity bubbles above the pet, which come and go
-//  with what is happening.
+//  by default — hovering one shows its account name in a small pill above
+//  the card, so the badge stays as compact as the numbers alone need.
+//
+//  The label is drawn by the view itself rather than a native NSView
+//  tooltip: this window is a borderless, non-activating overlay owned by an
+//  accessory app, and native tooltip tracking proved unreliable there. The
+//  main loop already polls NSEvent.mouseLocation every tick for the pet's
+//  own hover and drag handling, so hover here rides the same poll instead
+//  of depending on AppKit's own mouse-tracking machinery.
 
 import Cocoa
 
 final class UsageBadgeView: NSView {
-    var snapshots: [UsageStore.Snapshot] = [] {
-        didSet {
-            needsDisplay = true
-            layoutToolTips()
-        }
+    var snapshots: [UsageStore.Snapshot] = [] { didSet { needsDisplay = true } }
+    /// Which account the cursor is over, set every tick by the main loop.
+    var hoveredIndex: Int? {
+        didSet { if oldValue != hoveredIndex { needsDisplay = true } }
     }
 
     static let diameter: CGFloat = 40
@@ -26,7 +30,11 @@ final class UsageBadgeView: NSView {
     static let spacing: CGFloat = 14
     static let sidePadding: CGFloat = 10
     static let verticalPadding: CGFloat = 8
-    static let height: CGFloat = diameter + verticalPadding * 2
+    /// Room above the card for the hover pill — invisible the rest of the
+    /// time, so the resting badge looks exactly as compact as the rings.
+    static let hoverStripHeight: CGFloat = 20
+    static let cardHeight: CGFloat = diameter + verticalPadding * 2
+    static let height: CGFloat = cardHeight + hoverStripHeight
     /// Never lets the card grow absurdly wide; more accounts than this are
     /// simply not shown (`pet usage` on the command line has no such limit).
     static let maxAccounts = 6
@@ -37,20 +45,43 @@ final class UsageBadgeView: NSView {
     }
 
     static let centerFont = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
+    static let hoverFont = NSFont.systemFont(ofSize: 10, weight: .medium)
+
+    /// The x-centre of the i-th ring, in this view's own coordinates —
+    /// shared by drawing and by the hover hit-test so they can never drift
+    /// apart.
+    static func centerX(for index: Int) -> CGFloat {
+        sidePadding + diameter / 2 + CGFloat(index) * (diameter + spacing)
+    }
+
+    /// Which account, if any, a point in this view's own coordinates sits
+    /// over. Used by the main loop, not by AppKit's own hit-testing.
+    func slotIndex(at point: NSPoint) -> Int? {
+        guard point.y >= Self.hoverStripHeight, point.y <= Self.height else { return nil }
+        for i in 0..<min(snapshots.count, Self.maxAccounts) {
+            let x = Self.centerX(for: i)
+            if abs(point.x - x) <= Self.diameter / 2 { return i }
+        }
+        return nil
+    }
 
     override func draw(_ dirtyRect: NSRect) {
-        let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 12, yRadius: 12)
+        let cardRect = NSRect(
+            x: 1, y: 1, width: bounds.width - 2, height: Self.cardHeight - 2)
+        let card = NSBezierPath(roundedRect: cardRect, xRadius: 12, yRadius: 12)
         NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill()
         card.fill()
         NSColor.separatorColor.setStroke()
         card.lineWidth = 0.5
         card.stroke()
 
-        let d = Self.diameter
-        let cy = bounds.midY
+        let cy = Self.cardHeight / 2
         for (i, snap) in snapshots.prefix(Self.maxAccounts).enumerated() {
-            let cx = Self.sidePadding + d / 2 + CGFloat(i) * (d + Self.spacing)
-            drawAccount(snap, center: NSPoint(x: cx, y: cy))
+            drawAccount(snap, center: NSPoint(x: Self.centerX(for: i), y: cy))
+        }
+
+        if let i = hoveredIndex, i < snapshots.count {
+            drawHoverPill(label: snapshots[i].label, above: Self.centerX(for: i))
         }
     }
 
@@ -73,35 +104,30 @@ final class UsageBadgeView: NSView {
         }
     }
 
-    /// Each account's slot both accepts the hover for its tooltip and, via
-    /// `hitTest`, is the only part of this window that does not pass clicks
-    /// through to whatever is underneath — the same trick the activity
-    /// bubbles use for their cards.
-    private var slots: [NSRect] = []
-    private var slotSignature = ""
-
-    /// Rebuilt only when the account lineup itself changes — percentages
-    /// tick every half second, but the tooltip regions do not need to.
-    private func layoutToolTips() {
-        let labels = snapshots.prefix(Self.maxAccounts).map(\.label)
-        let signature = labels.joined(separator: "|")
-        guard signature != slotSignature else { return }
-        slotSignature = signature
-
-        removeAllToolTips()
-        slots.removeAll()
-        let d = Self.diameter
-        for (i, label) in labels.enumerated() {
-            let x = Self.sidePadding + CGFloat(i) * (d + Self.spacing)
-            let rect = NSRect(x: x, y: 0, width: d, height: Self.height)
-            slots.append(rect)
-            addToolTip(rect, owner: label, userData: nil)
-        }
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let local = convert(point, from: superview)
-        return slots.contains { $0.contains(local) } ? self : nil
+    /// A small dark pill floating above the card, in the reserved strip —
+    /// never clipped, since that strip is real view height, just usually
+    /// empty.
+    private func drawHoverPill(label: String, above cx: CGFloat) {
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: Self.hoverFont, .foregroundColor: NSColor.white,
+        ]
+        let size = (label as NSString).size(withAttributes: attrs)
+        let padding: CGFloat = 7
+        let pillWidth = size.width + padding * 2
+        let pillHeight: CGFloat = 16
+        var x = cx - pillWidth / 2
+        x = max(2, min(x, bounds.width - pillWidth - 2))
+        let rect = NSRect(
+            x: x, y: Self.height - pillHeight - 2, width: pillWidth, height: pillHeight)
+        // a fixed dark fill, not a dynamic system colour: labelColor flips
+        // to near-white in dark mode and all but disappears against this
+        // transparent backdrop.
+        NSColor(white: 0.12, alpha: 0.92).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: pillHeight / 2, yRadius: pillHeight / 2).fill()
+        (label as NSString).draw(
+            at: CGPoint(
+                x: rect.midX - size.width / 2, y: rect.minY + (pillHeight - size.height) / 2),
+            withAttributes: attrs)
     }
 
     /// One ring: a full track, then a progress arc clockwise from 12
@@ -164,6 +190,17 @@ extension AppDelegate {
     func hideUsageBadge() {
         guard let window = usageWindow, window.isVisible else { return }
         window.orderOut(nil)
+        usageView?.hoveredIndex = nil  // stale otherwise the next time it shows
+    }
+
+    /// Called every animation tick alongside the pet's own hover test, so
+    /// the label appears the moment the cursor reaches a ring rather than
+    /// waiting for the half-second usage-file poll.
+    func updateUsageHover(screenPoint: NSPoint) {
+        guard let window = usageWindow, window.isVisible, let view = usageView else { return }
+        let local = NSPoint(
+            x: screenPoint.x - window.frame.minX, y: screenPoint.y - window.frame.minY)
+        view.hoveredIndex = view.bounds.contains(local) ? view.slotIndex(at: local) : nil
     }
 
     /// Centred below the pet, kept on the screen.
@@ -192,9 +229,9 @@ extension AppDelegate {
         window.backgroundColor = .clear
         window.hasShadow = true
         window.level = .statusBar
-        // clicks and hover land on a ring and pass through everywhere else
-        // (hitTest) — hovering shows that account's name as a tooltip
-        window.ignoresMouseEvents = false
+        // a readout, nothing to click — hover is tracked separately from
+        // NSEvent.mouseLocation on the main loop, so this stays click-through
+        window.ignoresMouseEvents = true
         window.collectionBehavior = [
             .canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle,
         ]
