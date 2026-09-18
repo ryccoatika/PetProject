@@ -168,6 +168,9 @@ MacApp/
   Sources/Pet/
     main.swift                entry point: CLI, a render, or the app
     Pose, Preferences         small shared types
+    Log                       <configDir>/logs/pet.log — launches, plugin and
+                              config changes, update steps, errors; rotates
+                              at 512 KB, never written from the loop
     Skin, SkinStore           drawn skins: the format, finding and seeding them
     SpritePet, SpriteStore, SpriteInstaller    codex-pets packs
     HookHost, HookPlugin, OpencodePlugin       agent integration

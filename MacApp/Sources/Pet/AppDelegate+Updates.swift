@@ -148,6 +148,7 @@ extension AppDelegate {
         guard let zipURL = release.zipURL, let sha = release.sha256 else { return }
         aboutCheckButton?.isEnabled = false
         aboutSpinner?.startAnimation(nil)
+        Log.info("update: installing \(release.tag) from \(zipURL.absoluteString)")
         flash("updating…")
 
         URLSession.shared.downloadTask(with: zipURL) { file, _, error in
@@ -169,8 +170,10 @@ extension AppDelegate {
                 self.aboutCheckButton?.isEnabled = true
                 switch outcome {
                 case .success:
+                    Log.info("update: \(release.tag) verified and in place, relaunching")
                     self.relaunch()
                 case .failure(let error):
+                    Log.error("update: \(error.localizedDescription)")
                     self.showUpdateFailure(error)
                 }
             }
@@ -291,6 +294,7 @@ extension AppDelegate {
     }
 
     private func rememberAvailableUpdate(_ tag: String?) {
+        if let tag, tag != updateAvailable { Log.info("update available: \(tag)") }
         updateAvailable = tag
         if let tag {
             Prefs.store.set(tag, forKey: "petUpdateAvailable")

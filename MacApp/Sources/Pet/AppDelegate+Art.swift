@@ -20,16 +20,32 @@ extension AppDelegate {
         panel.directoryURL = SkinStore.configDir
         guard panel.runModal() == .OK, let url = panel.url else { return }
         SkinStore.setConfigDir(url)
+        Log.info("config folder changed to \(url.path)")
         reloadSkins()
         populateSkinMenu()
+        rebuildAboutIfOpen()
         flash("config moved")
     }
 
     @objc func useDefaultConfigFolder() {
         SkinStore.setConfigDir(nil)
+        Log.info("config folder reset to the default")
         reloadSkins()
         populateSkinMenu()
+        rebuildAboutIfOpen()
         flash("default location")
+    }
+
+    /// The About panel names the config folder and offers Use Default
+    /// Location only when it applies, so a change rebuilds it.
+    func rebuildAboutIfOpen() {
+        guard let window = aboutWindow, window.isVisible else {
+            aboutWindow = nil
+            return
+        }
+        window.close()
+        aboutWindow = nil
+        showAbout()
     }
 
     /// One row per agent: ticked when the pet is wired into it, and clicking

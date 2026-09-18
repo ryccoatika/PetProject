@@ -10,6 +10,23 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-09-18
+
+### Added
+
+- **A log file** at `<configDir>/logs/pet.log`: launches, plugin changes,
+  skin errors, config moves and every update step land there, so a bug
+  report can come with evidence. Rotates at 512 KB; the animation loop never
+  writes to it. **Show Log File in Finder** in the About panel reveals it.
+
+### Changed
+
+- The About panel's buttons are now a vertical list, and the config folder
+  moved there from the Skin menu: the path is shown alongside **Open Config
+  Folder** and **Change Config Folder…** (with **Use Default Location** when
+  a custom folder is active, and a disabled note when `$PET_CONFIG_DIR`
+  overrides it).
+
 ## [1.0.4] - 2026-09-17
 
 ### Added

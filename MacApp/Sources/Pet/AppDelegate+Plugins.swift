@@ -12,6 +12,7 @@ extension AppDelegate {
         let host = HookHost.all[item.tag]
         let registered = HookPlugin.isRegistered(host)
         HookPlugin.apply(host, remove: registered)
+        Log.info(registered ? "plugin removed: \(host.id)" : "plugin installed: \(host.id)")
         populatePluginMenu()
         flash(registered ? "\(host.id) plugin removed" : "\(host.id) plugin added")
     }

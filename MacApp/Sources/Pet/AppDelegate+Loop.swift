@@ -190,7 +190,11 @@ extension AppDelegate {
         d.set(Double(pos.y), forKey: "petPosY")
     }
 
-    func applicationWillTerminate(_ n: Notification) { savePos() }
+    func applicationWillTerminate(_ n: Notification) {
+        savePos()
+        Log.info("quitting")
+        Log.drain()
+    }
 
     /// Keep the pet reachable: never let a drop land it off every screen.
     func clampToScreen(_ p: CGPoint) -> CGPoint {

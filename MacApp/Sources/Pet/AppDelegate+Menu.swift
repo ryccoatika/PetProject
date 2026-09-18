@@ -315,6 +315,7 @@ extension AppDelegate {
         let result = SkinStore.load()
         skins = result.skins
         skinErrors = result.errors
+        for err in skinErrors { Log.error("skin: \(err)") }
         sprites = SpriteStore.load()
         // keep showing the current skin if its file is still there, else fall back
         view.skin = skins.first { $0.id == view.skin.id } ?? skins[0]
@@ -367,30 +368,11 @@ extension AppDelegate {
         }
 
         skinMenu.addItem(.separator())
-        let folderRow = NSMenuItem(
-            title: "Config: \(Self.tildePath(SkinStore.configDir))",
-            action: nil, keyEquivalent: "")
-        folderRow.isEnabled = false
-        skinMenu.addItem(folderRow)
-
-        var tail: [(String, Selector)] = [
-            ("Open Config Folder", #selector(openSkinsFolder)),
-            ("Change Config Folder…", #selector(changeConfigFolder)),
-        ]
-        if SkinStore.isCustomConfigDir && !SkinStore.configDirIsFromEnvironment {
-            tail.append(("Use Default Location", #selector(useDefaultConfigFolder)))
-        }
-        tail.append(("Reload Skins", #selector(reloadSkinsMenu)))
-        for (title, sel) in tail {
-            let it = NSMenuItem(title: title, action: sel, keyEquivalent: "")
-            it.target = self
-            if title == "Change Config Folder…" && SkinStore.configDirIsFromEnvironment {
-                it.action = nil  // $PET_CONFIG_DIR wins; nothing to change
-                it.isEnabled = false
-                it.title = "Set by $PET_CONFIG_DIR"
-            }
-            skinMenu.addItem(it)
-        }
+        // the config folder itself lives in About now
+        let reload = NSMenuItem(
+            title: "Reload Skins", action: #selector(reloadSkinsMenu), keyEquivalent: "")
+        reload.target = self
+        skinMenu.addItem(reload)
     }
 
     /// ~/-relative path, so the menu line stays short.

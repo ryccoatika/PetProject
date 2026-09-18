@@ -65,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var aboutWindow: NSWindow?
     var aboutCheckButton: NSButton?
     var aboutSpinner: NSProgressIndicator?
+    var aboutConfigLabel: NSTextField?
     /// The activity-bubble stack above the pet's head.
     var bubbleWindow: NSWindow?
     var bubbleView: BubbleView?
@@ -199,6 +200,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             name: Notification.Name(Prefs.reloadNotification), object: nil)
         writeRuntime()
 
+        Log.info(
+            "launched — skin=\(view.sprite?.id ?? view.skin.id) "
+                + "size=\(Int(artScale * 100))% hidden=\(hidden) chase=\(chaseWhenIdle) "
+                + "antics=\(anticsEnabled)")
         setLoopRate(fps)
     }
 }
