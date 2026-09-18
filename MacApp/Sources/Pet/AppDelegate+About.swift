@@ -2,10 +2,10 @@
 //  Desktop Pet
 //
 //  The About window. A real window rather than the standard panel or an
-//  alert: Check for Updates lives here, spins in place while it asks
-//  GitHub, and shows its answer as a sheet — About stays open throughout.
-//  The config folder and the log file are surfaced here too, so a bug
-//  report and a skin folder are both one click away.
+//  alert: Check for Updates lives here, its title saying "Checking…" while
+//  it asks GitHub, and shows its answer as a sheet — About stays open
+//  throughout. The config folder and the log file are surfaced here too,
+//  so a bug report and a skin folder are both one click away.
 
 import Cocoa
 
@@ -58,27 +58,13 @@ extension AppDelegate {
             b.widthAnchor.constraint(equalToConstant: 230).isActive = true
             return b
         }
+        // No spinner: while a check or an install runs the button disables
+        // and its title says so.
         let check = button("Check for Updates", #selector(checkForUpdates))
         aboutCheckButton = check
 
-        let spinner = NSProgressIndicator()
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.isDisplayedWhenStopped = false
-        aboutSpinner = spinner
-
-        // The spinner sits beside the update button; a spacer of the same
-        // width balances it so the button itself stays centre-aligned with
-        // the other buttons in the list.
-        let balance = NSView()
-        let checkRow = NSStackView(views: [balance, check, spinner])
-        checkRow.orientation = .horizontal
-        checkRow.spacing = 6
-        // only after the row owns both views — anchors need a common ancestor
-        balance.widthAnchor.constraint(equalTo: spinner.widthAnchor).isActive = true
-
         var rows: [NSView] = [
-            checkRow,
+            check,
             button("Show Log File in Finder", #selector(revealLogFile)),
             button("Open Config Folder", #selector(openSkinsFolder)),
         ]

@@ -81,12 +81,12 @@ extension AppDelegate {
     /// time.
     @objc func checkForUpdates() {
         aboutCheckButton?.isEnabled = false
-        aboutSpinner?.startAnimation(nil)
+        aboutCheckButton?.title = "Checking…"
         fetchLatestRelease { result in
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.aboutSpinner?.stopAnimation(nil)
                 self.aboutCheckButton?.isEnabled = true
+                self.aboutCheckButton?.title = "Check for Updates"
                 self.showUpdateResult(result)
             }
         }
@@ -147,7 +147,7 @@ extension AppDelegate {
     func installUpdate(_ release: ReleaseInfo) {
         guard let zipURL = release.zipURL, let sha = release.sha256 else { return }
         aboutCheckButton?.isEnabled = false
-        aboutSpinner?.startAnimation(nil)
+        aboutCheckButton?.title = "Updating…"
         Log.info("update: installing \(release.tag) from \(zipURL.absoluteString)")
         flash("updating…")
 
@@ -166,8 +166,8 @@ extension AppDelegate {
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.aboutSpinner?.stopAnimation(nil)
                 self.aboutCheckButton?.isEnabled = true
+                self.aboutCheckButton?.title = "Check for Updates"
                 switch outcome {
                 case .success:
                     Log.info("update: \(release.tag) verified and in place, relaunching")

@@ -64,7 +64,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// brings the same window forward and the spinner can be driven.
     var aboutWindow: NSWindow?
     var aboutCheckButton: NSButton?
-    var aboutSpinner: NSProgressIndicator?
     var aboutConfigLabel: NSTextField?
     /// The activity-bubble stack above the pet's head.
     var bubbleWindow: NSWindow?
