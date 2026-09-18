@@ -21,6 +21,9 @@ Unreleased, and merging into `main`.
   it. **Show Log File in Finder** in the About panel reveals it.
 - **Restart Pet** in the menu, above Quit — hands over to a fresh copy of
   the app in place.
+- **Hover the pet and it jumps** — whatever it was doing. **Dragging** plays
+  the run animation in the direction it is pulled (sprite packs use their
+  Run right/left tracks; drawn skins still dangle from the cursor).
 
 ### Changed
 

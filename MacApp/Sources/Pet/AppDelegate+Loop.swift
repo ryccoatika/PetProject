@@ -456,15 +456,20 @@ extension AppDelegate {
         // double-clicked; everywhere else clicks pass through.
         // Never re-evaluate mid-drag: a fast drag can outrun the window and
         // would otherwise make it click-through, dropping the cat.
+        var hovering = false
         if !dragging {
             let local = NSPoint(
                 x: mouseNow.x - window.frame.minX, y: mouseNow.y - window.frame.minY)
-            let grabbable = view.grabRect.contains(local)
-            if window.ignoresMouseEvents == grabbable { window.ignoresMouseEvents = !grabbable }
+            hovering = view.grabRect.contains(local)
+            if window.ignoresMouseEvents == hovering { window.ignoresMouseEvents = !hovering }
         }
 
-        if dragging {  // user is holding it: no autonomy
+        if dragging {  // user is holding it: no autonomy, run the way it is pulled
+            let dx = pos.x - lastDragX
+            if abs(dx) > 1 { view.facingRight = dx > 0 }
+            lastDragX = pos.x
             view.phase += 0.3
+            advanceSprite()
             view.needsDisplay = true
             return
         }
@@ -490,6 +495,12 @@ extension AppDelegate {
         }
         driveFromSession()
         updatePose()
+
+        // A hover gets a little jump for its trouble, whatever it was doing.
+        if hovering {
+            view.pose = .celebrate
+            view.label = nil
+        }
 
         let active = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
         isActive = active

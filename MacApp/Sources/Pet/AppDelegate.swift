@@ -101,6 +101,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Toss physics: velocity carried from a flick, integrated until settled.
     var throwVelocity = CGVector.zero
     var throwing = false
+    /// Where the pet was last tick while dragged, so the sprite can run in
+    /// the direction it is being pulled.
+    var lastDragX: CGFloat = 0
     var dragSamples: [(t: TimeInterval, p: CGPoint)] = []
     var sizeSlider: NSSlider?
     var sizeReadout: NSTextField?
@@ -180,7 +183,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         applyWindowSize()
         pos = clampToScreen(pos)
         savePos(force: true)
-        view.dragBegin = { [weak self] in self?.dragging = true }
+        view.dragBegin = { [weak self] in
+            self?.dragging = true
+            self?.lastDragX = self?.pos.x ?? 0
+        }
         view.dragMove = { [weak self] origin in
             guard let self else { return }
             self.pos = CGPoint(x: origin.x + self.size.width / 2, y: origin.y)
