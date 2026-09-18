@@ -18,6 +18,8 @@ Unreleased, and merging into `main`.
   skin errors, config moves and every update step land there, so a bug
   report can come with evidence. Rotates at 512 KB; the animation loop never
   writes to it. **Show Log File in Finder** in the About panel reveals it.
+- **Restart Pet** in the menu, above Quit — hands over to a fresh copy of
+  the app in place.
 
 ### Changed
 
