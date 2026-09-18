@@ -285,12 +285,54 @@ enum HookPlugin {
                     removed = true
                 }
                 if !removed { print("  ·  nothing to remove") }
-                return
+            } else {
+                // a stale copy in the other plugin folder would fire twice
+                for url in alternates where FileManager.default.fileExists(atPath: url.path) {
+                    try? FileManager.default.removeItem(at: url)
+                    print("  ✓  removed duplicate \(CLI.tilde(url))")
+                }
+                do {
+                    try FileManager.default.createDirectory(
+                        at: file.deletingLastPathComponent(),
+                        withIntermediateDirectories: true)
+                    try source.write(to: file, atomically: true, encoding: .utf8)
+                    print("  ✓  \(CLI.tilde(file))")
+                } catch {
+                    print(
+                        "  !  could not write \(CLI.tilde(file)): \(error.localizedDescription)")
+                }
             }
-            // a stale copy in the other plugin folder would fire twice
-            for url in alternates where FileManager.default.fileExists(atPath: url.path) {
-                try? FileManager.default.removeItem(at: url)
-                print("  ✓  removed duplicate \(CLI.tilde(url))")
+        }
+        applyCommands(host, remove: remove)
+    }
+
+    /// The create-pet and create-sprite files — skills for Claude Code and
+    /// Codex, command files elsewhere — kept in step with the hooks. Only
+    /// files at our exact paths are ever touched.
+    static func applyCommands(_ host: HookHost, remove: Bool) {
+        for (path, source) in host.commandFiles {
+            let file = host.configRoot.appendingPathComponent(path)
+            let exists = FileManager.default.fileExists(atPath: file.path)
+            if remove {
+                if exists {
+                    try? FileManager.default.removeItem(at: file)
+                    // a skill leaves its own folder behind; take it too when
+                    // the SKILL.md was all it held
+                    let parent = file.deletingLastPathComponent()
+                    if file.lastPathComponent == "SKILL.md",
+                        let left = try? FileManager.default.contentsOfDirectory(
+                            atPath: parent.path),
+                        left.filter({ $0 != ".DS_Store" }).isEmpty
+                    {
+                        try? FileManager.default.removeItem(at: parent)
+                    }
+                    print("  ✓  removed \(CLI.tilde(file))")
+                }
+                continue
+            }
+            if exists, (try? String(contentsOf: file, encoding: .utf8)) == source {
+                print("  ·  \(CLI.tilde(file)) already up to date")
+                continue
             }
             do {
                 try FileManager.default.createDirectory(
@@ -363,6 +405,12 @@ enum HookPlugin {
                     ? "not registered"
                     : installed.map(CLI.tilde).joined(separator: ", ")
                 print("  \(location)")
+            }
+            let commands = host.commandFiles
+                .map { host.configRoot.appendingPathComponent($0.path) }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            if !commands.isEmpty {
+                print("  commands: \(commands.map(\.lastPathComponent).joined(separator: ", "))")
             }
             if host.id == "claude" {
                 let managed = Set(

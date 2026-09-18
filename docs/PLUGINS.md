@@ -30,6 +30,35 @@ Then start a new session in that agent so the hooks load. The `pet` command
 comes with the app, so there is nothing else to copy and no separate installer
 to keep in step.
 
+## Skin skills and commands
+
+Installing a plugin also teaches the agent to make skins: **create-pet** and
+**create-sprite** land next to the hooks and leave with
+`pet plugin uninstall`. On Claude Code and Codex they are SKILL.md skills —
+modelled on Codex's own curated hatch-pet skill — so the agent can also
+reach for them from a plain request; elsewhere they are command files.
+
+- **create-pet** — designs a drawn `.petskin` (the small JSON format), writes
+  it into the skins folder and switches to it.
+- **create-sprite** — creates a spritesheet pet. On Codex it rides the
+  built-in **hatch-pet** skill (which composes the `$imagegen` system skill
+  to draw the character), then installs the hatched pet from
+  `~/.codex/pets/<id>` with `pet pets install` — the atlas is the same. On
+  every other agent — none has built-in image generation — the atlas layout
+  and track table are in the command and the agent generates the sheet with
+  a script, then installs it the same way.
+
+| Agent | Files |
+|---|---|
+| Claude Code | `~/.claude/skills/create-{pet,sprite}/SKILL.md` |
+| Codex | `~/.codex/skills/create-{pet,sprite}/SKILL.md` |
+| Gemini CLI | `~/.gemini/commands/create-{pet,sprite}.toml` |
+| opencode | `~/.config/opencode/command/create-{pet,sprite}.md` |
+| Cursor | `~/.cursor/commands/create-{pet,sprite}.md` |
+
+Antigravity and pi have no equivalent, so they get hooks only. Only files at
+exactly these paths are ever written or removed.
+
 ## What it registers
 
 Five of the seven take JSON config listing commands to run. Claude Code,

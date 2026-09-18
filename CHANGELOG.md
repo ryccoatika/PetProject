@@ -24,6 +24,13 @@ Unreleased, and merging into `main`.
 - **Hover the pet and it jumps** — whatever it was doing. **Dragging** plays
   the run animation in the direction it is pulled (sprite packs use their
   Run right/left tracks; drawn skins still dangle from the cursor).
+- **create-pet** and **create-sprite**, installed with the plugin: ask the
+  agent for a new drawn skin or a spritesheet pet and it knows the formats,
+  the folders and the CLI. On Claude Code and Codex they land as SKILL.md
+  skills (modelled on Codex's curated hatch-pet skill); Gemini CLI, opencode
+  and Cursor get command files. On Codex, create-sprite rides the built-in
+  **hatch-pet** skill (and its $imagegen system skill), then installs the
+  hatched pet straight into the app.
 
 ### Changed
 
