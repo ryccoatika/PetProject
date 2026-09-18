@@ -372,6 +372,19 @@ enum HookPlugin {
         let marker = previousStatusLineMarker(claudeDir)
         let label = CLI.tilde(settingsFile.deletingLastPathComponent())
 
+        if remove {
+            // Our own recorded reading for this account, regardless of
+            // whether the statusLine slot is still ours — a badge should
+            // never outlive the plugin that was feeding it. Otherwise the
+            // last reading looks live for up to an hour, until it ages out.
+            let usageFile = UsageStore.directory.appendingPathComponent(
+                UsageStore.accountKey(for: claudeDir))
+            if FileManager.default.fileExists(atPath: usageFile.path) {
+                try? FileManager.default.removeItem(at: usageFile)
+                print("  ✓  \(label) — usage badge data cleared")
+            }
+        }
+
         var root: [String: Any] = [:]
         if let data = try? Data(contentsOf: settingsFile), !data.isEmpty {
             guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]

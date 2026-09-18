@@ -39,7 +39,9 @@ Unreleased, and merging into `main`.
   which records them and, if a custom statusline was already configured,
   chains to it so nothing breaks. Each account's readings are keyed by its
   config folder's own name, so two folders can never collide, however they
-  are named. Running several accounts at once
+  are named, and uninstalling clears that account's reading too, so its ring
+  does not keep looking live until it ages out on its own. Running several
+  accounts at once
   (`~/.claude`, `~/.claude-account1`, …) shows one ring pair per account,
   up to 6, side by side — install the plugin once per account with
   `--path` to wire each one up. `pet usage` prints every account with no
