@@ -14,8 +14,9 @@ enum UsageStore {
     static var directory: URL { SkinStore.configDir.appendingPathComponent("usage") }
 
     struct Snapshot {
-        /// The account this reading is for — "default" for plain ~/.claude,
-        /// else the claude dir's own suffix (~/.claude-account1 → "account1").
+        /// The account's storage key — its config folder's own name, so it
+        /// is always unique regardless of what the folder is called. Use
+        /// `label` for what to show on screen.
         let account: String
         /// 0–100, Anthropic's own rolling 5-hour window — what /usage calls
         /// "Current session". Not this app's idea of an agent session.
@@ -27,6 +28,8 @@ enum UsageStore {
         let stamp: TimeInterval
 
         var age: TimeInterval { Date().timeIntervalSince1970 - stamp }
+        /// The friendly caption for the badge and `pet usage`.
+        var label: String { UsageStore.displayLabel(forKey: account) }
         /// The more urgent of the two — what a glance most needs to know.
         var worstPercent: Double? {
             switch (sessionPercent, weekPercent) {
@@ -42,24 +45,38 @@ enum UsageStore {
     /// once — is dropped rather than shown frozen forever.
     static let staleAfter: TimeInterval = 3600
 
-    /// ~/.claude → "default", ~/.claude-account1 → "account1", so the badge
-    /// labels match the folder names most people already chose for this.
-    static func accountLabel(for claudeDir: URL) -> String {
+    /// The filename an account's readings live under: its config folder's
+    /// own name (~/.claude-account1 → "claude-account1"), filesystem-safe.
+    /// Always unique — two different folders can never collide, however
+    /// they are named — unlike a shortened display label, which is only
+    /// cosmetic.
+    static func accountKey(for claudeDir: URL) -> String {
         var name = claudeDir.lastPathComponent
         if name.hasPrefix(".") { name.removeFirst() }
-        for prefix in ["claude-", "claude_"] where name.hasPrefix(prefix) {
-            name = String(name.dropFirst(prefix.count))
-        }
-        return name.isEmpty || name == "claude" ? "default" : name
+        if name.isEmpty { name = "claude" }
+        return String(name.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" })
     }
 
-    private static func safeFileName(_ account: String) -> String {
-        String(account.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" })
+    /// A friendlier caption derived from the stored key: "claude" (plain
+    /// ~/.claude) → "default", a "claude" prefix followed by "-" or "_" is
+    /// dropped so "claude-account1" → "account1" and "claude1" → "1". Purely
+    /// cosmetic — two keys that happen to shorten to the same word (
+    /// "claude-work" and "claude_work", say) still keep separate readings;
+    /// only their caption would coincide, which no real setup does by
+    /// accident.
+    static func displayLabel(forKey key: String) -> String {
+        guard key != "claude" else { return "default" }
+        var name = key
+        if name.hasPrefix("claude") {
+            name.removeFirst("claude".count)
+            while name.hasPrefix("-") || name.hasPrefix("_") { name.removeFirst() }
+        }
+        return name.isEmpty ? "default" : name
     }
 
     /// One line: sessionPct|sessionResets|weekPct|weekResets|stamp. A field
     /// is empty when Claude Code did not report that window.
-    static func write(rateLimits: [String: Any], account: String) {
+    static func write(rateLimits: [String: Any], claudeDir: URL) {
         func window(_ key: String) -> (Double?, TimeInterval?) {
             guard let w = rateLimits[key] as? [String: Any] else { return (nil, nil) }
             return (w["used_percentage"] as? Double, w["resets_at"] as? TimeInterval)
@@ -79,7 +96,7 @@ enum UsageStore {
         }
         try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
         try? line.write(
-            to: directory.appendingPathComponent(safeFileName(account)), atomically: true,
+            to: directory.appendingPathComponent(accountKey(for: claudeDir)), atomically: true,
             encoding: .utf8)
     }
 
@@ -106,11 +123,12 @@ enum UsageStore {
                     sessionResetsAt: TimeInterval(parts[1]), weekPercent: Double(parts[2]),
                     weekResetsAt: TimeInterval(parts[3]), stamp: stamp))
         }
-        // "default" first (plain ~/.claude, what almost everyone has), then
-        // alphabetically, so the row does not reshuffle from tick to tick.
+        // "claude" (plain ~/.claude, what almost everyone has) first, then
+        // alphabetically by key, so the row does not reshuffle from tick to
+        // tick even if two accounts share a shortened display label.
         return snapshots.sorted {
-            ($0.account == "default" ? "" : $0.account)
-                < ($1.account == "default" ? "" : $1.account)
+            ($0.account == "claude" ? "" : $0.account)
+                < ($1.account == "claude" ? "" : $1.account)
         }
     }
 

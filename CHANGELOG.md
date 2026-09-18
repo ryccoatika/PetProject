@@ -37,7 +37,9 @@ Unreleased, and merging into `main`.
   urgent one in the centre. Hooks never receive these, so the Claude Code
   plugin now also points each config's `statusLine` at `pet statusline`,
   which records them and, if a custom statusline was already configured,
-  chains to it so nothing breaks. Running several accounts at once
+  chains to it so nothing breaks. Each account's readings are keyed by its
+  config folder's own name, so two folders can never collide, however they
+  are named. Running several accounts at once
   (`~/.claude`, `~/.claude-account1`, …) shows one ring pair per account,
   up to 6, side by side — install the plugin once per account with
   `--path` to wire each one up. `pet usage` prints every account with no

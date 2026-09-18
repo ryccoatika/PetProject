@@ -66,7 +66,7 @@ final class UsageBadgeView: NSView {
                 withAttributes: attrs)
         }
 
-        let label = snap.account
+        let label = snap.label
         let labelAttrs: [NSAttributedString.Key: Any] = [
             .font: Self.labelFont, .foregroundColor: NSColor.secondaryLabelColor,
         ]

@@ -24,8 +24,7 @@ extension CLI {
         }
 
         if let rateLimits = json["rate_limits"] as? [String: Any] {
-            UsageStore.write(
-                rateLimits: rateLimits, account: UsageStore.accountLabel(for: claudeDir))
+            UsageStore.write(rateLimits: rateLimits, claudeDir: claudeDir)
         }
 
         if let previous = HookPlugin.previousStatusLineCommand(claudeDir: claudeDir) {
@@ -79,7 +78,7 @@ extension CLI {
                 }
                 let stale = snap.age > UsageStore.staleAfter ? " — stale" : ""
                 print(
-                    "\(snap.account.padding(toLength: 10, withPad: " ", startingAt: 0)) "
+                    "\(snap.label.padding(toLength: 10, withPad: " ", startingAt: 0)) "
                         + ": \(parts.joined(separator: " · "))\(stale)")
             }
         default:
