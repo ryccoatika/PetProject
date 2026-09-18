@@ -99,11 +99,13 @@ extension AppDelegate {
                 guard let self else { return }
                 switch result {
                 case .success(let pet):
+                    Log.info("sprite pack installed: \(pet.id)")
                     self.reloadSkins()
                     _ = self.applyArt(id: pet.id)
                     self.populateSkinMenu()
                     self.refreshMenu()
                 case .failure(let error):
+                    Log.error("sprite install: \(error.localizedDescription)")
                     self.flash("install failed")
                     self.report(error: error.localizedDescription)
                 }
@@ -135,7 +137,11 @@ extension AppDelegate {
         var selected: String?
         for src in panel.urls {
             if isSpritePack(src) {  // a codex-pets.net pack
-                do { selected = try SpriteInstaller.install(src.path).id } catch {
+                do {
+                    selected = try SpriteInstaller.install(src.path).id
+                    Log.info("sprite pack imported: \(selected ?? src.lastPathComponent)")
+                } catch {
+                    Log.error("import \(src.lastPathComponent): \(error.localizedDescription)")
                     alert("Could not import \(src.lastPathComponent)", error.localizedDescription)
                 }
                 continue
@@ -149,6 +155,7 @@ extension AppDelegate {
                 try FileManager.default.copyItem(at: src, to: dest)
                 selected = skin.id
             } catch {
+                Log.error("import \(src.lastPathComponent): \(error.localizedDescription)")
                 alert("Could not import \(src.lastPathComponent)", error.localizedDescription)
             }
         }
@@ -247,6 +254,7 @@ extension AppDelegate {
         guard item.tag < sprites.count else { return }
         let pet = sprites[item.tag]
         try? FileManager.default.removeItem(at: pet.folder)
+        Log.info("sprite pack removed: \(pet.id)")
         reloadSkins()
         if view.sprite?.id == pet.id, let first = skins.first { apply(first) }
         populateSkinMenu()

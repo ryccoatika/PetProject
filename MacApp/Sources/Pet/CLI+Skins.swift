@@ -87,6 +87,8 @@ extension CLI {
         }
         do {
             let pet = try SpriteInstaller.install(source)
+            Log.info("sprite pack installed from cli: \(pet.id)")
+            Log.drain()
             print(
                 "installed \(pet.name) (\(pet.id)) — \(pet.rows) rows, "
                     + "\(Int(pet.cell.width))x\(Int(pet.cell.height)) frames")

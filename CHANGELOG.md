@@ -15,9 +15,10 @@ Unreleased, and merging into `main`.
 ### Added
 
 - **A log file** at `<configDir>/logs/pet.log`: launches, plugin changes,
-  skin errors, config moves and every update step land there, so a bug
-  report can come with evidence. Rotates at 512 KB; the animation loop never
-  writes to it. **Show Log File in Finder** in the About panel reveals it.
+  skin errors, sprite pack installs and removals, config moves, every update
+  step, `pet` command failures and crashes land there, so a bug report can
+  come with evidence. Rotates at 512 KB; the animation loop never writes to
+  it. **Show Log File in Finder** in the About panel reveals it.
 - **Restart Pet** in the menu, above Quit — hands over to a fresh copy of
   the app in place.
 

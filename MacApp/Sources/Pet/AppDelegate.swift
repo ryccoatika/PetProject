@@ -133,6 +133,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var placedAt = CGPoint(x: CGFloat.infinity, y: CGFloat.infinity)
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        // A crash should leave a trace in the log a bug report can carry.
+        NSSetUncaughtExceptionHandler { exception in
+            Log.error(
+                "crash: \(exception.name.rawValue) — \(exception.reason ?? "no reason")")
+            Log.info("stack: " + exception.callStackSymbols.joined(separator: " | "))
+            Log.drain()
+        }
         NSApp.setActivationPolicy(.accessory)
         hidden = Prefs.store.bool(forKey: "petHidden")  // before the window is shown
         window = NSWindow(

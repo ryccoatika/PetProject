@@ -12,6 +12,8 @@ enum CLI {
     }
 
     static func fail(_ message: String) -> Never {
+        Log.error("cli: \(message)")
+        Log.drain()  // exit(1) would otherwise outrun the write
         FileHandle.standardError.write(("pet: " + message + "\n").data(using: .utf8)!)
         exit(1)
     }
