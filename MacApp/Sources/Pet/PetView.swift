@@ -208,16 +208,17 @@ final class PetView: NSView {
     /// Which atlas row the current pose maps to.
     ///
     ///   Idle          sitting, and sleeping (slowed down)
-    ///   Run right/left  walking, by direction
-    ///   Waving        being picked up
-    ///   Jumping       a turn just finished
+    ///   Run right/left  walking — and being dragged — by direction
+    ///   Waving        the waving idle antic
+    ///   Jumping       a turn just finished, or a hover over the pet
     ///   Failed        the agent reported a failure
     ///   Waiting       waiting for you (permission / notification)
     ///   Running       a tool is running
     ///   Review        thinking between steps
     ///   Look around   idle glancing, toward whichever side the cursor is on
     var spriteTrack: SpritePet.Track {
-        if held { return .waving }
+        // dragged: run in the direction it is being pulled
+        if held { return facingRight ? .runningRight : .runningLeft }
         switch pose {
         case .running: return facingRight ? .runningRight : .runningLeft
         case .working: return .running

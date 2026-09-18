@@ -10,6 +10,64 @@ Unreleased, and merging into `main`.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-09-18
+
+### Added
+
+- **A log file** at `<configDir>/logs/pet.log`: launches, plugin changes,
+  skin errors, sprite pack installs and removals, config moves, every update
+  step, `pet` command failures and crashes land there, so a bug report can
+  come with evidence. Rotates at 512 KB; the animation loop never writes to
+  it. **Show Log File in Finder** in the About panel reveals it.
+- **Restart Pet** in the menu, above Quit — hands over to a fresh copy of
+  the app in place.
+- **Hover the pet and it jumps** — whatever it was doing. **Dragging** plays
+  the run animation in the direction it is pulled (sprite packs use their
+  Run right/left tracks; drawn skins still dangle from the cursor).
+- **create-pet** and **create-sprite**, installed with the plugin: ask the
+  agent for a new drawn skin or a spritesheet pet and it knows the formats,
+  the folders and the CLI. On Claude Code and Codex they land as SKILL.md
+  skills (modelled on Codex's curated hatch-pet skill); Gemini CLI, opencode
+  and Cursor get command files. On Codex, create-sprite rides the built-in
+  **hatch-pet** skill (and its $imagegen system skill), then installs the
+  hatched pet straight into the app.
+- **A usage badge** below the pet, for Claude Code and Codex both: a ring
+  pair per account — outer for the longer rate-limit window, inner for the
+  shorter one, the more urgent one in the centre and no caption drawn under
+  it — hover a ring to see which account it is (its config folder, agent
+  name included, so a plain Claude and a plain Codex account installed at
+  once never both just say "default"). Running several accounts of either
+  agent at once shows one ring pair per account, up to 6, side by side.
+  `pet usage` prints every account with no cap; `pet usage show | hide`, the
+  menu's **Show Usage Below Pet**, or the pet's right-click menu toggles the
+  badge.
+
+  Hooks never receive Claude's rate-limit numbers, so the Claude Code plugin
+  also points each config's `statusLine` at `pet statusline` — installed
+  once per account with `--path` — which records them and, if a custom
+  statusline was already configured, chains to it so nothing breaks.
+  Uninstalling restores it and clears that account's reading, so its ring
+  does not keep looking live until it ages out on its own. A per-model
+  weekly figure is not included — Anthropic does not expose one outside
+  `/usage`'s own display.
+
+  Codex has no statusLine equivalent — its only external hook carries turn
+  metadata, never usage — so nothing is installed into its config for this
+  at all: `pet` instead polls Codex's own session files every 30 seconds for
+  the `rate_limits` reading Codex already records for itself, across
+  `~/.codex` and any sibling `~/.codex-*` account. This relies on Codex's
+  internal rollout format, which is unofficial and undocumented — a future
+  Codex release changing it can silently stop this working, unlike Claude's
+  supported `statusLine` contract.
+
+### Changed
+
+- The About panel's buttons are now a vertical list, and the config folder
+  moved there from the Skin menu: the path is shown alongside **Open Config
+  Folder** and **Change Config Folder…** (with **Use Default Location** when
+  a custom folder is active, and a disabled note when `$PET_CONFIG_DIR`
+  overrides it).
+
 ## [1.0.4] - 2026-09-17
 
 ### Added

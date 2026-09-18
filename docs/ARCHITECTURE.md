@@ -112,6 +112,33 @@ Two rules keep this safe to run against a file full of somebody else's hooks:
 Every config file is copied to `*.bak-pet` before editing, and one that cannot
 be parsed is reported and left untouched.
 
+Claude Code carries one exception. Hooks never receive Anthropic's own
+rate-limit numbers — only the separate `statusLine` command does — so
+installing the Claude plugin also claims that slot: `statusLine.command`
+becomes `pet statusline --claude-dir <dir>`, which reads the JSON Claude Code
+sends it, writes the two numbers to `<configDir>/usage/<account>` — one file
+per Claude account, so several running at once (`~/.claude`,
+`~/.claude-account1`, …) never clobber each other — for the app to poll, and
+prints its own line. Unlike hooks, each config's `statusLine` holds exactly one
+command, so a pre-existing one is saved next to `settings.json`
+(`.pet-statusline-previous.json`) and `pet statusline` runs it first,
+appending the usage line to whatever it printed; uninstalling reads the same
+file to hand the slot back. The same ownership and reconcile rules apply —
+a `statusLine` we do not recognise as ours is never touched, coming or going.
+
+Codex has no equivalent slot to claim — its only external hook carries turn
+metadata, never usage — so nothing is installed into its config at all.
+Instead `CodexUsage.pollAll()` runs on a 30-second timer, reading the tail of
+whichever rollout file under `~/.codex/sessions` (or a sibling `~/.codex-*`)
+was modified most recently, and writes into the same `<configDir>/usage/`
+store Claude's statusline feeds. The shape it looks for (`rate_limits`
+holding `primary`/`secondary` windows with `used_percent`/`resets_at`) comes
+from reading Codex's own source rather than a published contract — there
+isn't one — so the search is bounded-depth rather than a fixed path, more
+likely to survive a small wrapper change than an exact one would, but this
+is unofficial and can break outright on a bigger one. Uninstalling a Codex
+account still clears its recorded reading, the same as Claude's.
+
 ## Drawing
 
 `PetView` draws in a fixed design space — 170×165 for the drawn art, 210×240
@@ -168,14 +195,20 @@ MacApp/
   Sources/Pet/
     main.swift                entry point: CLI, a render, or the app
     Pose, Preferences         small shared types
+    Log                       <configDir>/logs/pet.log — launches, plugin and
+                              config changes, update steps, errors; rotates
+                              at 512 KB, never written from the loop
     Skin, SkinStore           drawn skins: the format, finding and seeding them
     SpritePet, SpriteStore, SpriteInstaller    codex-pets packs
-    HookHost, HookPlugin, OpencodePlugin       agent integration
+    HookHost, HookPlugin, OpencodePlugin, AgentCommands   agent integration
+    UsageStore, UsageBadge   Claude's and Codex's own rate-limit numbers
+    CodexUsage               polls Codex's session files for its own usage
+    ActivityBubbles          per-session cards above the pet
     PetView, PetView+Art      view state and dragging / how each pose is drawn
     Renderers                 icon, disk image background, contact sheets
     AppDelegate               lifecycle, window, shared state
-      +Menu +Art +Plugins +Tools +Loop
-    CLI +App +Skins +Plugin   the command line tool
+      +Menu +Art +Plugins +Tools +Loop +Updates +About
+    CLI +App +Skins +Plugin +Usage   the command line tool
   Skins/                      the four shipped skins, compiled in at build time
   build.sh                    compile, bundle, install locally
   dmg.sh                      build the disk image to share

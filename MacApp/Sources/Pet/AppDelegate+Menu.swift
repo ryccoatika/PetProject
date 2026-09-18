@@ -97,6 +97,12 @@ extension AppDelegate {
         about.image = menuSymbol("info.circle")
         mainMenu.addItem(about)
 
+        let restart = NSMenuItem(
+            title: "Restart Pet", action: #selector(restart), keyEquivalent: "r")
+        restart.target = self
+        restart.image = menuSymbol("arrow.clockwise")
+        mainMenu.addItem(restart)
+
         let quit = NSMenuItem(title: "Quit Pet", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         mainMenu.addItem(quit)
@@ -169,6 +175,14 @@ extension AppDelegate {
         chimeItem.state = chimeEnabled ? .on : .off
         chimeItem.image = menuSymbol("bell")
         behaviorMenu.addItem(chimeItem)
+
+        usageItem = NSMenuItem(
+            title: "Show Usage Below Pet",
+            action: #selector(toggleUsageBadge), keyEquivalent: "")
+        usageItem.target = self
+        usageItem.state = usageEnabled ? .on : .off
+        usageItem.image = menuSymbol("gauge.with.dots.needle.50percent")
+        behaviorMenu.addItem(usageItem)
 
         behaviorMenu.addItem(.separator())
 
@@ -261,6 +275,10 @@ extension AppDelegate {
             ),
             ("Antics When Bored", #selector(toggleAntics), anticsEnabled, "figure.wave"),
             ("Show Activity Bubbles", #selector(toggleBubbles), bubblesEnabled, "bubble.left"),
+            (
+                "Show Usage Below Pet", #selector(toggleUsageBadge), usageEnabled,
+                "gauge.with.dots.needle.50percent"
+            ),
         ]
         for (title, action, on, symbol) in toggles {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -279,6 +297,7 @@ extension AppDelegate {
         anticsItem?.state = anticsEnabled ? .on : .off
         bubbleItem?.state = bubblesEnabled ? .on : .off
         chimeItem?.state = chimeEnabled ? .on : .off
+        usageItem?.state = usageEnabled ? .on : .off
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -315,6 +334,7 @@ extension AppDelegate {
         let result = SkinStore.load()
         skins = result.skins
         skinErrors = result.errors
+        for err in skinErrors { Log.error("skin: \(err)") }
         sprites = SpriteStore.load()
         // keep showing the current skin if its file is still there, else fall back
         view.skin = skins.first { $0.id == view.skin.id } ?? skins[0]
@@ -367,30 +387,11 @@ extension AppDelegate {
         }
 
         skinMenu.addItem(.separator())
-        let folderRow = NSMenuItem(
-            title: "Config: \(Self.tildePath(SkinStore.configDir))",
-            action: nil, keyEquivalent: "")
-        folderRow.isEnabled = false
-        skinMenu.addItem(folderRow)
-
-        var tail: [(String, Selector)] = [
-            ("Open Config Folder", #selector(openSkinsFolder)),
-            ("Change Config Folder…", #selector(changeConfigFolder)),
-        ]
-        if SkinStore.isCustomConfigDir && !SkinStore.configDirIsFromEnvironment {
-            tail.append(("Use Default Location", #selector(useDefaultConfigFolder)))
-        }
-        tail.append(("Reload Skins", #selector(reloadSkinsMenu)))
-        for (title, sel) in tail {
-            let it = NSMenuItem(title: title, action: sel, keyEquivalent: "")
-            it.target = self
-            if title == "Change Config Folder…" && SkinStore.configDirIsFromEnvironment {
-                it.action = nil  // $PET_CONFIG_DIR wins; nothing to change
-                it.isEnabled = false
-                it.title = "Set by $PET_CONFIG_DIR"
-            }
-            skinMenu.addItem(it)
-        }
+        // the config folder itself lives in About now
+        let reload = NSMenuItem(
+            title: "Reload Skins", action: #selector(reloadSkinsMenu), keyEquivalent: "")
+        reload.target = self
+        skinMenu.addItem(reload)
     }
 
     /// ~/-relative path, so the menu line stays short.

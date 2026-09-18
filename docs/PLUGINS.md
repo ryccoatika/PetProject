@@ -30,6 +30,111 @@ Then start a new session in that agent so the hooks load. The `pet` command
 comes with the app, so there is nothing else to copy and no separate installer
 to keep in step.
 
+## Skin skills and commands
+
+Installing a plugin also teaches the agent to make skins: **create-pet** and
+**create-sprite** land next to the hooks and leave with
+`pet plugin uninstall`. On Claude Code and Codex they are SKILL.md skills —
+modelled on Codex's own curated hatch-pet skill — so the agent can also
+reach for them from a plain request; elsewhere they are command files.
+
+- **create-pet** — designs a drawn `.petskin` (the small JSON format), writes
+  it into the skins folder and switches to it.
+- **create-sprite** — creates a spritesheet pet. On Codex it rides the
+  built-in **hatch-pet** skill (which composes the `$imagegen` system skill
+  to draw the character), then installs the hatched pet from
+  `~/.codex/pets/<id>` with `pet pets install` — the atlas is the same. On
+  every other agent — none has built-in image generation — the atlas layout
+  and track table are in the command and the agent generates the sheet with
+  a script, then installs it the same way.
+
+| Agent | Files |
+|---|---|
+| Claude Code | `~/.claude/skills/create-{pet,sprite}/SKILL.md` |
+| Codex | `~/.codex/skills/create-{pet,sprite}/SKILL.md` |
+| Gemini CLI | `~/.gemini/commands/create-{pet,sprite}.toml` |
+| opencode | `~/.config/opencode/command/create-{pet,sprite}.md` |
+| Cursor | `~/.cursor/commands/create-{pet,sprite}.md` |
+
+Antigravity and pi have no equivalent, so they get hooks only. Only files at
+exactly these paths are ever written or removed.
+
+## Usage badge
+
+A small badge below the pet shows Claude's and Codex's own rate-limit
+numbers — a ring pair per account, outer ring the longer window, inner ring
+the shorter one, the more urgent of the two as the number in the centre. No
+caption is drawn under a ring; hovering it shows that account's name (its
+config folder, with the agent's name — `~/.claude` → **Claude**,
+`~/.claude-account1` → **Claude · account1**, `~/.codex` → **Codex**) in a
+small pill above the card instead, so the badge stays as small as the rings
+alone need — this is why the agent name always stays in the caption rather
+than collapsing to a bare "default": a plain Claude and a plain Codex
+account both being installed at once is the *common* case, not an edge
+case, and both collapsing to the same word left no way to tell them apart.
+The label is self-drawn rather than a native tooltip — this window is a
+borderless overlay owned by an accessory app, where AppKit's own tooltip
+tracking proved unreliable — so hover rides the same `NSEvent.mouseLocation`
+poll the main loop already runs every tick for the pet's own hover and drag
+handling; the window stays fully click-through throughout. Ring pairs sit
+side by side, one per account, capped at 6 so the badge cannot grow
+absurdly wide; `pet usage` has no such cap and prints every account.
+**Show Usage Below Pet** (menu, or the pet's right-click menu) toggles it.
+
+The two agents get the data in entirely different ways:
+
+**Claude Code** installs one more thing beyond hooks: its own `statusLine`
+entry. That is the only place Anthropic exposes rate-limit numbers — hooks
+never receive them — so `pet plugin install claude --path <dir>` also
+points that config's `statusLine.command` at
+`pet statusline --claude-dir <dir>`, which reads the JSON Claude Code sends
+it and writes the rolling 5-hour "session" window and the 7-day "week, all
+models" window (the same two `/usage` shows) into
+`<configDir>/usage/<account>`. `statusLine` holds exactly one command,
+unlike hooks, so a pre-existing custom one is saved beside `settings.json`
+and chained to rather than replaced; uninstalling restores it, and clears
+that account's recorded reading so its ring does not linger.
+
+Running Claude Code under several accounts — `~/.claude`,
+`~/.claude-account1`, `~/.claude-account2`, … via `$CLAUDE_CONFIG_DIR` or a
+shell alias — install the plugin once per account with `--path`:
+
+```sh
+pet plugin install claude --path ~/.claude
+pet plugin install claude --path ~/.claude-account1
+pet plugin install claude --path ~/.claude-account2
+```
+
+Each gets its own hooks, skills and `statusLine` entry, and each shows up as
+its own ring the moment that account's Claude Code reports rate limits.
+
+**Codex** has no equivalent to `statusLine` — its only external hook
+(`notify`) carries turn metadata, never usage, and the 5-hour/weekly
+percentages its own `/statusline` shows exist only inside its interactive
+TUI. There is nothing for it to push to `pet`, so nothing is installed into
+Codex's config for this at all: `pet` instead polls Codex's own session
+files every 30 seconds — `~/.codex/sessions/**/rollout-*.jsonl` and any
+sibling `~/.codex-*` folder, mirroring how multiple Claude accounts are
+named — reading only the tail of the most recently modified file for the
+latest `rate_limits` reading Codex already records for itself. This is
+read-only and unofficial: Codex ships no documented format for its rollout
+files, so a future Codex release changing that internal shape can silently
+stop this working, unlike Claude's supported `statusLine` contract.
+Uninstalling a Codex account (`pet plugin uninstall codex --path <dir>`)
+still clears its recorded reading, the same as Claude's.
+
+A per-model weekly figure (Fable's own week, say) is not included: Anthropic
+does not expose it anywhere outside `/usage`'s own interactive display, so
+there is nothing to read.
+
+`statusLine` holds exactly one command, unlike hooks. If a custom statusline
+was already configured, install saves it (next to that `settings.json`, as
+`.pet-statusline-previous.json`) and `pet statusline` runs it first, appending
+the usage line to its output; uninstall reads the same file to put the
+original command back — untouched if it is not recognisable as ours to begin
+with. Badge and usage data only appear for Pro and Max plans, and only after
+a session's first response.
+
 ## What it registers
 
 Five of the seven take JSON config listing commands to run. Claude Code,

@@ -1,0 +1,101 @@
+//  CLI+Usage.swift
+//  Desktop Pet
+//
+//  `pet statusline` — installed into Claude Code's statusLine setting so the
+//  app can read the rate-limit numbers hooks never receive. `pet usage` is
+//  the human-facing readout of the same files, which Codex feeds too — see
+//  CodexUsage.swift for how, since it has no statusLine equivalent to push
+//  through.
+
+import Cocoa
+
+extension CLI {
+
+    /// Called by Claude Code with the statusline JSON on stdin. Records the
+    /// rate-limit numbers under this account's own name, chains to whatever
+    /// statusline was there before (see HookPlugin.mergeStatusLine), and
+    /// prints its output plus ours. Always exits 0: a status line that fails
+    /// just goes blank, never blocks the UI.
+    static func statusline(_ args: [String]) -> Never {
+        let data = FileHandle.standardInput.readDataToEndOfFile()
+        let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+
+        var claudeDir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".claude")
+        if let i = args.firstIndex(of: "--claude-dir"), i + 1 < args.count {
+            claudeDir = URL(fileURLWithPath: args[i + 1])
+        }
+
+        if let rateLimits = json["rate_limits"] as? [String: Any] {
+            func window(_ key: String) -> (Double?, TimeInterval?) {
+                guard let w = rateLimits[key] as? [String: Any] else { return (nil, nil) }
+                return (w["used_percentage"] as? Double, w["resets_at"] as? TimeInterval)
+            }
+            let (sessionPct, sessionResets) = window("five_hour")
+            let (weekPct, weekResets) = window("seven_day")
+            UsageStore.write(
+                sessionPercent: sessionPct, sessionResetsAt: sessionResets,
+                weekPercent: weekPct, weekResetsAt: weekResets, configDir: claudeDir)
+        }
+
+        if let previous = HookPlugin.previousStatusLineCommand(claudeDir: claudeDir) {
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/bin/sh")
+            proc.arguments = ["-c", previous]
+            let stdin = Pipe(), stdout = Pipe()
+            proc.standardInput = stdin
+            proc.standardOutput = stdout
+            do {
+                try proc.run()
+                stdin.fileHandleForWriting.write(data)
+                stdin.fileHandleForWriting.closeFile()
+                proc.waitUntilExit()
+                let out = stdout.fileHandleForReading.readDataToEndOfFile()
+                if let text = String(data: out, encoding: .utf8), !text.isEmpty {
+                    print(text.trimmingCharacters(in: .newlines))
+                }
+            } catch {
+                Log.error("statusline: could not run the previous command: \(previous)")
+            }
+        }
+        exit(0)
+    }
+
+    /// `pet usage` — the numbers /usage (or Codex's own status line) shows,
+    /// one line per account with a fresh reading.
+    static func usage(_ action: String?) {
+        Prefs.refresh()
+        switch action {
+        case "show", "hide":
+            Prefs.store.set(action == "hide", forKey: "petUsageHidden")
+            Prefs.store.synchronize()
+            Prefs.notifyRunningApp()
+            print(action == "hide" ? "usage badge hidden" : "usage badge shown")
+        case nil, "status":
+            let snapshots = UsageStore.readAll()
+            guard !snapshots.isEmpty else {
+                print(
+                    "no usage data yet — needs a Claude Code Pro/Max session, "
+                        + "or Codex having run at least once")
+                return
+            }
+            let width = max(10, snapshots.map { $0.label.count }.max() ?? 10)
+            for snap in snapshots {
+                var parts: [String] = []
+                if let pct = snap.sessionPercent {
+                    let reset = UsageStore.humanReset(snap.sessionResetsAt).map { " (\($0))" }
+                    parts.append("session \(Int(pct))%\(reset ?? "")")
+                }
+                if let pct = snap.weekPercent {
+                    let reset = UsageStore.humanReset(snap.weekResetsAt).map { " (\($0))" }
+                    parts.append("week \(Int(pct))%\(reset ?? "")")
+                }
+                let stale = snap.age > UsageStore.staleAfter ? " — stale" : ""
+                print(
+                    "\(snap.label.padding(toLength: width, withPad: " ", startingAt: 0)) "
+                        + ": \(parts.joined(separator: " · "))\(stale)")
+            }
+        default:
+            fail("usage: pet usage [show | hide]")
+        }
+    }
+}

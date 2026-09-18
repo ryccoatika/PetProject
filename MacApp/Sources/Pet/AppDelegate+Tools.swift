@@ -188,6 +188,10 @@ extension AppDelegate {
         writeRuntime()
     }
     @objc func quit() { NSApp.terminate(nil) }
+    @objc func restart() {
+        Log.info("restarting from the menu")
+        relaunch()
+    }
 
     /// What the running app is actually doing, for `pet status`.
     /// Rebuild the timer at a new rate. Tolerance lets the system coalesce

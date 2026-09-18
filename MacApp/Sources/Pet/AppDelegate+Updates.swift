@@ -81,12 +81,12 @@ extension AppDelegate {
     /// time.
     @objc func checkForUpdates() {
         aboutCheckButton?.isEnabled = false
-        aboutSpinner?.startAnimation(nil)
+        aboutCheckButton?.title = "Checking…"
         fetchLatestRelease { result in
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.aboutSpinner?.stopAnimation(nil)
                 self.aboutCheckButton?.isEnabled = true
+                self.aboutCheckButton?.title = "Check for Updates"
                 self.showUpdateResult(result)
             }
         }
@@ -147,7 +147,8 @@ extension AppDelegate {
     func installUpdate(_ release: ReleaseInfo) {
         guard let zipURL = release.zipURL, let sha = release.sha256 else { return }
         aboutCheckButton?.isEnabled = false
-        aboutSpinner?.startAnimation(nil)
+        aboutCheckButton?.title = "Updating…"
+        Log.info("update: installing \(release.tag) from \(zipURL.absoluteString)")
         flash("updating…")
 
         URLSession.shared.downloadTask(with: zipURL) { file, _, error in
@@ -165,12 +166,14 @@ extension AppDelegate {
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.aboutSpinner?.stopAnimation(nil)
                 self.aboutCheckButton?.isEnabled = true
+                self.aboutCheckButton?.title = "Check for Updates"
                 switch outcome {
                 case .success:
+                    Log.info("update: \(release.tag) verified and in place, relaunching")
                     self.relaunch()
                 case .failure(let error):
+                    Log.error("update: \(error.localizedDescription)")
                     self.showUpdateFailure(error)
                 }
             }
@@ -235,8 +238,9 @@ extension AppDelegate {
         }
     }
 
-    /// Hand over to the new copy: open it after this process has gone.
-    private func relaunch() {
+    /// Start this bundle again once this process has gone — the tail end of
+    /// an update, and the menu's Restart Pet.
+    func relaunch() {
         let path = Bundle.main.bundleURL.path
         let handoff = Process()
         handoff.executableURL = URL(fileURLWithPath: "/bin/sh")
@@ -291,6 +295,7 @@ extension AppDelegate {
     }
 
     private func rememberAvailableUpdate(_ tag: String?) {
+        if let tag, tag != updateAvailable { Log.info("update available: \(tag)") }
         updateAvailable = tag
         if let tag {
             Prefs.store.set(tag, forKey: "petUpdateAvailable")

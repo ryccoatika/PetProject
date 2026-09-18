@@ -64,12 +64,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// brings the same window forward and the spinner can be driven.
     var aboutWindow: NSWindow?
     var aboutCheckButton: NSButton?
-    var aboutSpinner: NSProgressIndicator?
+    var aboutConfigLabel: NSTextField?
     /// The activity-bubble stack above the pet's head.
     var bubbleWindow: NSWindow?
     var bubbleView: BubbleView?
     var bubblesEnabled = true
     var bubbleSignature = ""
+    /// Claude's own session/week rate-limit badge, below the pet.
+    var usageEnabled = true
+    var usageWindow: NSWindow?
+    var usageView: UsageBadgeView?
     var bubbleItem: NSMenuItem!
     var sinceBubbleRead: Double = 0
     /// Live sessions, re-read on a slow tick and shared by the bubbles, the
@@ -79,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Chime when a session starts waiting for you. Off by default.
     var chimeEnabled = false
     var chimeItem: NSMenuItem!
+    var usageItem: NSMenuItem!
     let chimeSoundName = "Submarine"  // a built-in macOS alert sound
     var lastWaitingSessions: Set<String> = []
     var bubbleWindowSeenOnce = false
@@ -101,6 +106,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Toss physics: velocity carried from a flick, integrated until settled.
     var throwVelocity = CGVector.zero
     var throwing = false
+    /// Where the pet was last tick while dragged, so the sprite can run in
+    /// the direction it is being pulled.
+    var lastDragX: CGFloat = 0
     var dragSamples: [(t: TimeInterval, p: CGPoint)] = []
     var sizeSlider: NSSlider?
     var sizeReadout: NSTextField?
@@ -126,6 +134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var tickScale: Double { fps / max(currentFPS, 1) }
     var sinceStateRead: Double = 0
     var sinceSave: Double = 0
+    /// Codex has to be polled for its own usage — file IO, so on a much
+    /// slower cadence than the half-second bubble/badge tick.
+    var sinceCodexUsagePoll: Double = 30
     var sinceSpriteFrame: Double = 0
 
     /// Last origin handed to the window server, so an unmoved pet costs
@@ -133,6 +144,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var placedAt = CGPoint(x: CGFloat.infinity, y: CGFloat.infinity)
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        // A crash should leave a trace in the log a bug report can carry.
+        NSSetUncaughtExceptionHandler { exception in
+            Log.error(
+                "crash: \(exception.name.rawValue) — \(exception.reason ?? "no reason")")
+            Log.info("stack: " + exception.callStackSymbols.joined(separator: " | "))
+            Log.drain()
+        }
         NSApp.setActivationPolicy(.accessory)
         hidden = Prefs.store.bool(forKey: "petHidden")  // before the window is shown
         window = NSWindow(
@@ -153,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let d = Prefs.store
         chaseWhenIdle = d.bool(forKey: "petChase")
         bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
+        usageEnabled = !d.bool(forKey: "petUsageHidden")
         chimeEnabled = d.bool(forKey: "petChime")
         anticsEnabled = !d.bool(forKey: "petAnticsOff")
         pinnedSession = d.string(forKey: "petFollowSession") ?? ""
@@ -173,7 +192,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         applyWindowSize()
         pos = clampToScreen(pos)
         savePos(force: true)
-        view.dragBegin = { [weak self] in self?.dragging = true }
+        view.dragBegin = { [weak self] in
+            self?.dragging = true
+            self?.lastDragX = self?.pos.x ?? 0
+        }
         view.dragMove = { [weak self] origin in
             guard let self else { return }
             self.pos = CGPoint(x: origin.x + self.size.width / 2, y: origin.y)
@@ -197,8 +219,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(reloadFromPreferences),
             name: Notification.Name(Prefs.reloadNotification), object: nil)
+        // A Space switch can leave an all-Spaces borderless window out of
+        // the new Space's window list, and isVisible stays true so no tick
+        // notices. Re-asserting on arrival brings the pet and its bubbles.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(activeSpaceChanged),
+            name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         writeRuntime()
 
+        Log.info(
+            "launched — skin=\(view.sprite?.id ?? view.skin.id) "
+                + "size=\(Int(artScale * 100))% hidden=\(hidden) chase=\(chaseWhenIdle) "
+                + "antics=\(anticsEnabled)")
         setLoopRate(fps)
     }
 }

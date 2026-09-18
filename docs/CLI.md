@@ -13,6 +13,7 @@ link too, pointing it at the copy in `~/Applications`.
     pet tray show | hide    the menu bar icon
     pet bubbles show | hide the activity bubbles above the pet
     pet antics on | off     wander, wave or sulk when bored (on by default)
+    pet usage [show | hide] Claude's session/week rate-limit badge, or its numbers
     pet stats               today's sessions, tools and active time
     pet skins               list skins, current one marked
     pet skin <id>           switch skin
@@ -99,6 +100,26 @@ A few things follow from having every session in view:
   whichever agent wrote last.
 - `pet stats` (and a line in About) tallies today's sessions, tools run and
   active time.
+
+## Usage badge
+
+With the Claude Code and/or Codex plugin installed, a small badge below the
+pet shows each account's own rate-limit numbers as a pair of concentric
+rings: outer for the longer window, inner for the shorter one, the more
+urgent of the two as the number in the middle — no caption under the ring
+by default, so **hover a ring to see which account it is** (its config
+folder, agent name included: `~/.claude` → Claude, `~/.codex-account1` →
+Codex · account1). Running several accounts of either agent at once shows
+one ring pair per account, side by side, up to 6; `pet usage` prints every
+account with no cap. `pet usage show | hide` (or **Show Usage Below Pet** in
+the menu or the pet's right-click menu) toggles the badge.
+
+Claude's numbers need a Pro or Max plan and only appear after a session's
+first response; Codex's come from its own local session files rather than
+anything Claude-style pushed to `pet`, so they can lag slightly and rely on
+an unofficial, undocumented format. See [Agent
+plugins](PLUGINS.md#usage-badge) for how each agent's numbers actually get
+to `pet` and how to wire up more than one account.
 
 `pet event <name>` is what writes that line: agent hooks call the CLI
 directly, so there is no generated shell script anywhere. With `--allow` it

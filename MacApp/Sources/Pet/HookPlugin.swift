@@ -285,12 +285,213 @@ enum HookPlugin {
                     removed = true
                 }
                 if !removed { print("  ·  nothing to remove") }
+            } else {
+                // a stale copy in the other plugin folder would fire twice
+                for url in alternates where FileManager.default.fileExists(atPath: url.path) {
+                    try? FileManager.default.removeItem(at: url)
+                    print("  ✓  removed duplicate \(CLI.tilde(url))")
+                }
+                do {
+                    try FileManager.default.createDirectory(
+                        at: file.deletingLastPathComponent(),
+                        withIntermediateDirectories: true)
+                    try source.write(to: file, atomically: true, encoding: .utf8)
+                    print("  ✓  \(CLI.tilde(file))")
+                } catch {
+                    print(
+                        "  !  could not write \(CLI.tilde(file)): \(error.localizedDescription)")
+                }
+            }
+        }
+        applyCommands(host, remove: remove)
+        if host.id == "claude" {
+            for dir in hostConfigDirs(host) {
+                mergeStatusLine(claudeDir: dir, remove: remove)
+            }
+        }
+        if host.id == "codex", remove {
+            // Codex has no statusLine-like slot to reclaim — there is
+            // nothing to restore — but its own recorded usage reading
+            // should not outlive the plugin any more than Claude's does.
+            for dir in hostConfigDirs(host) {
+                let file = UsageStore.directory.appendingPathComponent(
+                    UsageStore.accountKey(for: dir))
+                if FileManager.default.fileExists(atPath: file.path) {
+                    try? FileManager.default.removeItem(at: file)
+                    print("  ✓  \(CLI.tilde(dir)) — usage badge data cleared")
+                }
+            }
+        }
+    }
+
+    /// The config folders a host's own files just landed in — including
+    /// every `--path` the hooks were just registered into. Used both for
+    /// Claude's statusLine (which lives beside the same settings.json) and
+    /// for clearing a Codex account's recorded usage on uninstall.
+    private static func hostConfigDirs(_ host: HookHost) -> [URL] {
+        guard case .json(let files, _, _, _, _) = host.kind else { return [] }
+        return files.map { $0.deletingLastPathComponent() }
+    }
+
+    // MARK: status line
+
+    /// Our own claim on the statusLine slot: same strict-ownership rule as a
+    /// hook — the executable must be the pet, and its first argument must be
+    /// `statusline`. A user's own script never accidentally looks like ours.
+    static func isOurStatusLineCommand(_ command: String) -> Bool {
+        let text = command.trimmingCharacters(in: .whitespaces)
+        let executable: String
+        if text.hasPrefix("\"") {
+            let body = text.dropFirst()
+            guard let end = body.firstIndex(of: "\"") else { return false }
+            executable = String(body[body.startIndex..<end])
+        } else {
+            executable = String(text.split(separator: " ").first ?? "")
+        }
+        let name = URL(fileURLWithPath: executable).lastPathComponent
+        guard name == "pet" || name == "Pet" else { return false }
+        let arguments = text.dropFirst(
+            text.hasPrefix("\"") ? executable.count + 2 : executable.count)
+        return arguments.trimmingCharacters(in: .whitespaces).hasPrefix("statusline")
+    }
+
+    static func statusLineCommand(claudeDir: URL) -> String {
+        let path = CLI.installedCommandPath
+        let quoted = path.contains(" ") ? "\"\(path)\"" : path
+        let dirArg = claudeDir.path.contains(" ") ? "\"\(claudeDir.path)\"" : claudeDir.path
+        return "\(quoted) statusline --claude-dir \(dirArg)"
+    }
+
+    private static func previousStatusLineMarker(_ claudeDir: URL) -> URL {
+        claudeDir.appendingPathComponent(".pet-statusline-previous.json")
+    }
+
+    /// What `pet statusline` chains to, when we are wrapping somebody else's
+    /// statusline rather than being the only one.
+    static func previousStatusLineCommand(claudeDir: URL) -> String? {
+        guard let data = try? Data(contentsOf: previousStatusLineMarker(claudeDir)),
+            let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let command = saved["command"] as? String
+        else { return nil }
+        return command
+    }
+
+    /// Installs `pet statusline` into settings.json's single `statusLine`
+    /// slot, remembering whatever was there so uninstall can give it back.
+    /// Never touches a slot that already holds something we do not
+    /// recognise as ours on the way out — only ever our own entry is
+    /// replaced or restored.
+    static func mergeStatusLine(claudeDir: URL, remove: Bool) {
+        let settingsFile = claudeDir.appendingPathComponent("settings.json")
+        let marker = previousStatusLineMarker(claudeDir)
+        let label = CLI.tilde(settingsFile.deletingLastPathComponent())
+
+        if remove {
+            // Our own recorded reading for this account, regardless of
+            // whether the statusLine slot is still ours — a badge should
+            // never outlive the plugin that was feeding it. Otherwise the
+            // last reading looks live for up to an hour, until it ages out.
+            let usageFile = UsageStore.directory.appendingPathComponent(
+                UsageStore.accountKey(for: claudeDir))
+            if FileManager.default.fileExists(atPath: usageFile.path) {
+                try? FileManager.default.removeItem(at: usageFile)
+                print("  ✓  \(label) — usage badge data cleared")
+            }
+        }
+
+        var root: [String: Any] = [:]
+        if let data = try? Data(contentsOf: settingsFile), !data.isEmpty {
+            guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else {
+                print("  !  \(label) — settings.json unreadable, status line left untouched")
                 return
             }
-            // a stale copy in the other plugin folder would fire twice
-            for url in alternates where FileManager.default.fileExists(atPath: url.path) {
-                try? FileManager.default.removeItem(at: url)
-                print("  ✓  removed duplicate \(CLI.tilde(url))")
+            root = parsed
+        } else if remove {
+            return  // nothing to remove
+        }
+
+        let existing = root["statusLine"] as? [String: Any]
+        let oursNow =
+            existing.map { isOurStatusLineCommand($0["command"] as? String ?? "") }
+            ?? false
+
+        if remove {
+            guard oursNow else { return }  // never ours; leave whatever is there alone
+            if let data = try? Data(contentsOf: marker),
+                let previous = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            {
+                root["statusLine"] = previous
+                print("  ✓  \(label) — status line restored")
+            } else {
+                root.removeValue(forKey: "statusLine")
+                print("  ✓  \(label) — status line removed")
+            }
+            try? FileManager.default.removeItem(at: marker)
+            writeSettings(root, to: settingsFile)
+            return
+        }
+
+        guard !oursNow else { return }  // already installed
+        if let existing {
+            // somebody else's statusline: remember it so uninstall gives it back
+            if let data = try? JSONSerialization.data(withJSONObject: existing) {
+                try? data.write(to: marker)
+            }
+        } else {
+            try? FileManager.default.removeItem(at: marker)  // nothing to chain to
+        }
+        root["statusLine"] = [
+            "type": "command", "command": statusLineCommand(claudeDir: claudeDir),
+        ]
+        writeSettings(root, to: settingsFile)
+        print("  ✓  \(label) — status line installed (Claude's session/week usage)")
+    }
+
+    private static func writeSettings(_ root: [String: Any], to url: URL) {
+        if FileManager.default.fileExists(atPath: url.path) {
+            let backup = url.appendingPathExtension("bak-pet")
+            try? FileManager.default.removeItem(at: backup)
+            try? FileManager.default.copyItem(at: url, to: backup)
+        } else {
+            try? FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        }
+        guard
+            let out = try? JSONSerialization.data(
+                withJSONObject: root,
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        else { return }
+        try? out.write(to: url)
+    }
+
+    /// The create-pet and create-sprite files — skills for Claude Code and
+    /// Codex, command files elsewhere — kept in step with the hooks. Only
+    /// files at our exact paths are ever touched.
+    static func applyCommands(_ host: HookHost, remove: Bool) {
+        for (path, source) in host.commandFiles {
+            let file = host.configRoot.appendingPathComponent(path)
+            let exists = FileManager.default.fileExists(atPath: file.path)
+            if remove {
+                if exists {
+                    try? FileManager.default.removeItem(at: file)
+                    // a skill leaves its own folder behind; take it too when
+                    // the SKILL.md was all it held
+                    let parent = file.deletingLastPathComponent()
+                    if file.lastPathComponent == "SKILL.md",
+                        let left = try? FileManager.default.contentsOfDirectory(
+                            atPath: parent.path),
+                        left.filter({ $0 != ".DS_Store" }).isEmpty
+                    {
+                        try? FileManager.default.removeItem(at: parent)
+                    }
+                    print("  ✓  removed \(CLI.tilde(file))")
+                }
+                continue
+            }
+            if exists, (try? String(contentsOf: file, encoding: .utf8)) == source {
+                print("  ·  \(CLI.tilde(file)) already up to date")
+                continue
             }
             do {
                 try FileManager.default.createDirectory(
@@ -363,6 +564,12 @@ enum HookPlugin {
                     ? "not registered"
                     : installed.map(CLI.tilde).joined(separator: ", ")
                 print("  \(location)")
+            }
+            let commands = host.commandFiles
+                .map { host.configRoot.appendingPathComponent($0.path) }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            if !commands.isEmpty {
+                print("  commands: \(commands.map(\.lastPathComponent).joined(separator: ", "))")
             }
             if host.id == "claude" {
                 let managed = Set(

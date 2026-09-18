@@ -318,6 +318,16 @@ extension AppDelegate {
         }
     }
 
+    /// Landed on another Space: put the windows back in front of it.
+    @objc func activeSpaceChanged() {
+        guard !hidden else { return }
+        window.orderFrontRegardless()
+        if let bubble = bubbleWindow, bubble.isVisible {
+            placeBubbles()
+            bubble.orderFrontRegardless()
+        }
+    }
+
     @objc func toggleBubbles() {
         bubblesEnabled.toggle()
         Prefs.store.set(!bubblesEnabled, forKey: "petBubblesHidden")

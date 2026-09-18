@@ -34,6 +34,7 @@ extension CLI {
         print("antics     : \(d.bool(forKey: "petAnticsOff") ? "off" : "on")")
         print("menu bar   : \(d.bool(forKey: "petTrayHidden") ? "hidden" : "shown")")
         print("bubbles    : \(d.bool(forKey: "petBubblesHidden") ? "hidden" : "shown")")
+        print("usage badge: \(d.bool(forKey: "petUsageHidden") ? "hidden" : "shown")")
         print(
             "size       : \(Int((((d.object(forKey: "petScale") as? Double) ?? 1) * 100).rounded()))%"
         )

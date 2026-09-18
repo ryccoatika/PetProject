@@ -60,6 +60,8 @@ extension AppDelegate {
         if !anticsEnabled { endIdleAct() }
         bubblesEnabled = !d.bool(forKey: "petBubblesHidden")
         if !bubblesEnabled { hideBubbles() }
+        usageEnabled = !d.bool(forKey: "petUsageHidden")
+        if !usageEnabled { hideUsageBadge() }
         // a missing key means the default size, which is how `pet size reset`
         // clears it — reading it as "no change" would ignore the reset
         let savedScale = CGFloat((d.object(forKey: "petScale") as? Double) ?? 1)
@@ -190,7 +192,11 @@ extension AppDelegate {
         d.set(Double(pos.y), forKey: "petPosY")
     }
 
-    func applicationWillTerminate(_ n: Notification) { savePos() }
+    func applicationWillTerminate(_ n: Notification) {
+        savePos()
+        Log.info("quitting")
+        Log.drain()
+    }
 
     /// Keep the pet reachable: never let a drop land it off every screen.
     func clampToScreen(_ p: CGPoint) -> CGPoint {
@@ -243,6 +249,7 @@ extension AppDelegate {
         placedAt = pos
         window.setFrameOrigin(NSPoint(x: pos.x - size.width / 2, y: pos.y))
         placeBubbles()  // the stack rides along
+        placeUsageBadge()
     }
 
     // MARK: state file
@@ -359,7 +366,8 @@ extension AppDelegate {
             idleAct = .running
             wanderTarget = randomWanderPoint()
             // long enough to cross the screen, then give up on a blocked walk
-            let dist = abs((wanderTarget?.x ?? pos.x) - pos.x)
+            let w = wanderTarget ?? pos
+            let dist = hypot(w.x - pos.x, w.y - pos.y)
             idleActUntil = Date().addingTimeInterval(Double(dist) / 280 + 4)
             view.pose = .sitting
         } else if roll < wanderShare + (grumpy ? 0.2 : 0.35) {
@@ -378,18 +386,21 @@ extension AppDelegate {
         wanderTarget = nil
     }
 
-    /// A stroll target anywhere along the current screen's floor, at least a
-    /// real walk away — never a two-pixel shuffle against an edge.
+    /// A stroll target anywhere on the current screen, at least a real walk
+    /// away — never a two-pixel shuffle against an edge.
     func randomWanderPoint() -> CGPoint {
         let screen =
             NSScreen.screens.first { $0.frame.contains(pos) } ?? NSScreen.main
             ?? NSScreen.screens[0]
         let f = screen.visibleFrame
+        let ceiling = max(f.minY + 4, f.maxY - size.height)
         for _ in 0..<4 {
-            let x = CGFloat.random(in: (f.minX + 60)...(f.maxX - 60))
-            if abs(x - pos.x) > 150 { return clampToScreen(CGPoint(x: x, y: pos.y)) }
+            let p = CGPoint(
+                x: CGFloat.random(in: (f.minX + 60)...(f.maxX - 60)),
+                y: CGFloat.random(in: (f.minY + 4)...ceiling))
+            if hypot(p.x - pos.x, p.y - pos.y) > 150 { return clampToScreen(p) }
         }
-        // a narrow screen or unlucky rolls: head for the far side
+        // a small screen or unlucky rolls: head for the far side
         let far = pos.x < f.midX ? f.maxX - 60 : f.minX + 60
         return clampToScreen(CGPoint(x: far, y: pos.y))
     }
@@ -437,6 +448,7 @@ extension AppDelegate {
             updatePose()
             isActive = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
             hideBubbles()
+            hideUsageBadge()
             setLoopRate(desiredLoopRate())
             return
         }
@@ -446,21 +458,27 @@ extension AppDelegate {
             lastMousePoint = mouseNow
             lastMouseMove = Date()
         }
+        updateUsageHover(screenPoint: mouseNow)
 
         // Per-pixel click-through: the window takes the mouse whenever the
         // cursor is over the cat itself, so it can always be grabbed or
         // double-clicked; everywhere else clicks pass through.
         // Never re-evaluate mid-drag: a fast drag can outrun the window and
         // would otherwise make it click-through, dropping the cat.
+        var hovering = false
         if !dragging {
             let local = NSPoint(
                 x: mouseNow.x - window.frame.minX, y: mouseNow.y - window.frame.minY)
-            let grabbable = view.grabRect.contains(local)
-            if window.ignoresMouseEvents == grabbable { window.ignoresMouseEvents = !grabbable }
+            hovering = view.grabRect.contains(local)
+            if window.ignoresMouseEvents == hovering { window.ignoresMouseEvents = !hovering }
         }
 
-        if dragging {  // user is holding it: no autonomy
+        if dragging {  // user is holding it: no autonomy, run the way it is pulled
+            let dx = pos.x - lastDragX
+            if abs(dx) > 1 { view.facingRight = dx > 0 }
+            lastDragX = pos.x
             view.phase += 0.3
+            advanceSprite()
             view.needsDisplay = true
             return
         }
@@ -478,14 +496,27 @@ extension AppDelegate {
 
         if sinceStateRead >= 0.1 { sinceStateRead = 0; readState() } else { eventAge += dt }
 
+        sinceCodexUsagePoll += dt
+        if sinceCodexUsagePoll >= 30 {
+            sinceCodexUsagePoll = 0
+            DispatchQueue.global(qos: .utility).async { CodexUsage.pollAll() }
+        }
+
         sinceBubbleRead += dt
         if sinceBubbleRead >= 0.5 {
             sinceBubbleRead = 0
             liveSessions = SessionStore.read()
             updateBubbles()
+            updateUsageBadge()
         }
         driveFromSession()
         updatePose()
+
+        // A hover gets a little jump for its trouble, whatever it was doing.
+        if hovering {
+            view.pose = .celebrate
+            view.label = nil
+        }
 
         let active = [.working, .thinking, .alert, .celebrate, .failed].contains(view.pose)
         isActive = active
